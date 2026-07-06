@@ -27,3 +27,10 @@
    ```bash
    git clone https://github.com/你的用户名/你的仓库名.git
    cd 你的仓库名
+2.安装依赖（建议创建虚拟环境）
+   bash
+   pip install -r requirements.txt
+3.启动应用
+   bash
+   python app.py
+4.打开浏览器访问 http://127.0.0.1:5000 即可体验。
