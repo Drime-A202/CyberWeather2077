@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CYBER_WEATHER // 中国天气地图_2077</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+</head>
+<body>
+    <div class="scanline"></div>
+    <div class="grid-overlay"></div>
+
+    <header class="top-bar">
+        <div class="logo">
+            <span class="logo-icon">&#9728;</span>
+            <span class="logo-text">CYBER<span class="accent">_WEATHER</span></span>
+            <span class="logo-sub">// CHINA_MAP_v2.077</span>
+        </div>
+        <div class="status">
+            <span class="status-item"><span class="led led-green"></span> ONLINE</span>
+            <span class="status-item"><span class="led led-cyan"></span> <span id="current-time">--:--:--</span></span>
+            <span class="status-item"><span class="led led-pink"></span> <span id="active-city">北京</span></span>
+        </div>
+    </header>
+
+    <main class="map-container">
+        <div class="map-panel panel">
+            <div class="panel-title">
+                <span class="title-bar"></span>
+                <span>CHINA_WEATHER_MAP // 中国天气地图</span>
+                <span class="title-bar"></span>
+            </div>
+            <div class="map-wrapper" id="map-wrapper">
+                <div id="china-map" class="china-map-echarts"></div>
+
+                <div class="map-tooltip" id="map-tooltip">
+                    <div class="tooltip-header">
+                        <span class="tooltip-city" id="tooltip-city">城市</span>
+                        <span class="tooltip-code" id="tooltip-code">[CODE]</span>
+                    </div>
+                    <div class="tooltip-body">
+                        <div class="tooltip-temp"><span id="tooltip-temp">--</span><span class="tooltip-unit">°C</span></div>
+                        <div class="tooltip-desc" id="tooltip-desc">加载中...</div>
+                        <div class="tooltip-extra">
+                            <div><span class="tooltip-label">体感</span> <span id="tooltip-feels">--</span>°C</div>
+                            <div><span class="tooltip-label">湿度</span> <span id="tooltip-humidity">--</span>%</div>
+                            <div><span class="tooltip-label">风力</span> <span id="tooltip-wind">--</span>km/h</div>
+                        </div>
+                    </div>
+                    <div class="tooltip-loading" id="tooltip-loading">> 同步数据流...</div>
+                </div>
+
+                <div class="map-legend">
+                    <div class="legend-title">LEGEND // 图例</div>
+                    <div class="legend-item"><span class="legend-dot legend-cold"></span> 寒冷 (0°C~)</div>
+                    <div class="legend-item"><span class="legend-dot legend-cool"></span> 凉爽 (0-15°C)</div>
+                    <div class="legend-item"><span class="legend-dot legend-mild"></span> 温和 (15-25°C)</div>
+                    <div class="legend-item"><span class="legend-dot legend-warm"></span> 温暖 (25-30°C)</div>
+                    <div class="legend-item"><span class="legend-dot legend-hot"></span> 炎热 (30°C+)</div>
+                </div>
+
+                <div class="map-coords">
+                    <div>LAT: <span id="map-lat">--</span></div>
+                    <div>LON: <span id="map-lon">--</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="side-panels">
+            <div class="panel city-detail-panel">
+                <div class="panel-title">
+                    <span class="title-bar"></span>
+                    <span>CITY_DETAIL // 城市详情</span>
+                    <span class="title-bar"></span>
+                </div>
+                <div class="city-header">
+                    <div class="city-name" id="city-name">{{ weather.city if weather else 'UNKNOWN' }}</div>
+                    <div class="city-meta">
+                        <span class="meta-item">[{{ weather.country if weather else '---' }}]</span>
+                        <span class="meta-item">LAT: {{ weather.latitude if weather else '---' }}</span>
+                        <span class="meta-item">LON: {{ weather.longitude if weather else '---' }}</span>
+                    </div>
+                </div>
+                <div class="current-display">
+                    <div class="weather-icon-display">
+                        <svg class="cyber-icon" viewBox="0 0 120 120">
+                            <circle cx="60" cy="60" r="45" class="icon-ring"/>
+                            <circle cx="60" cy="60" r="30" class="icon-core" id="icon-core"/>
+                            <text x="60" y="70" text-anchor="middle" class="icon-symbol" id="icon-symbol">&#9728;</text>
+                        </svg>
+                    </div>
+                    <div class="temp-display">
+                        <div class="temp-value">
+                            <span id="current-temp">{{ weather.current.temperature if weather else '--' }}</span>
+                            <span class="temp-unit">&#176;C</span>
+                        </div>
+                        <div class="temp-label" id="current-desc">{{ weather.current.description if weather else 'SYSTEM_OFFLINE' }}</div>
+                        <div class="temp-code">[{{ weather.current.cyber if weather else 'CODE_NONE' }}]</div>
+                    </div>
+                </div>
+                <div class="data-grid-small">
+                    <div class="data-card-small"><span class="data-label-small">WIND</span><span class="data-value-small"><span id="wind-speed">{{ weather.current.wind_speed if weather else '--' }}</span>km/h</span></div>
+                    <div class="data-card-small"><span class="data-label-small">HUM</span><span class="data-value-small"><span id="humidity">{{ weather.current.humidity if weather else '--' }}</span>%</span></div>
+                    <div class="data-card-small"><span class="data-label-small">PRES</span><span class="data-value-small"><span id="pressure">{{ weather.current.pressure if weather else '--' }}</span>hPa</span></div>
+                    <div class="data-card-small"><span class="data-label-small">CLOUD</span><span class="data-value-small"><span id="cloud-cover">{{ weather.current.cloud_cover if weather else '--' }}</span>%</span></div>
+                    <div class="data-card-small"><span class="data-label-small">UV</span><span class="data-value-small"><span id="uv-index">{{ weather.uv_index if weather else '--' }}</span></span></div>
+                    <div class="data-card-small"><span class="data-label-small">PRECIP</span><span class="data-value-small"><span id="precip">{{ weather.current.precipitation if weather else '--' }}</span>mm</span></div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">
+                    <span class="title-bar"></span>
+                    <span>7DAY_FORECAST // 7天预报</span>
+                    <span class="title-bar"></span>
+                </div>
+                <div class="daily-list-compact" id="daily-list"></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">
+                    <span class="title-bar"></span>
+                    <span>SYSTEM_LOG // 系统日志</span>
+                    <span class="title-bar"></span>
+                </div>
+                <div class="system-log" id="system-log">
+                    <div class="log-line"><span class="log-time">[SYSTEM]</span> <span class="log-msg">地图系统初始化...</span></div>
+                    <div class="log-line"><span class="log-time">[NETWORK]</span> <span class="log-msg">已连接至 Open-Meteo 网络</span></div>
+                    <div class="log-line"><span class="log-time">[DATA]</span> <span class="log-msg">城市数据节点已激活</span></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bottom-bar">
+        <div class="footer-text">POWERED_BY :: Open-Meteo_API + ECharts // CHINA_INTERACTIVE_MAP_v2.077</div>
+        <div class="footer-text accent">[ NEURAL_LINK :: ACTIVE ]</div>
+    </footer>
+
+    <script>
+        const initialWeather = {{ weather | tojson | safe }};
+    </script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
