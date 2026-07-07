@@ -84,7 +84,7 @@
 
 | 天气地图 | 艺术粒子（晴） | 艺术粒子（雨） |
 | :---: | :---: | :---: |
-| ![地图](screenshots/map.png) | ![晴](screenshots/sunny.png) | ![雨](screenshots/rain.png) |
+| ![地图](screenshots/map.jpg) | ![晴](screenshots/sunny.jpg) | ![雨](screenshots/rain.jpg) |
 
 ---
 
