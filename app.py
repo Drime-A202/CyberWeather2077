@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, make_response
 import requests
 from datetime import datetime
 import hashlib
@@ -299,6 +299,19 @@ def index():
     raw_data = get_weather_data(city_info["latitude"], city_info["longitude"])
     weather = format_weather_data(raw_data, city_info["name"], city_info["country"])
     return render_template("index.html", weather=weather, city_key=default_city)
+
+
+@app.route("/art")
+def art():
+    # CyberWeather2077 - 数据诗学艺术实验页面
+    # 默认使用北京天气，前端通过现有 /api/weather 动态更新
+    # 关键：强制禁止浏览器 + 任何中间层缓存，确保用户每次都能拉到最新版
+    resp = make_response(render_template("art.html"))
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0, private"
+    resp.headers["Pragma"]        = "no-cache"
+    resp.headers["Expires"]       = "0"
+    resp.headers["Last-Modified"] = ""   # 避免 If-Modified-Since 命中 304
+    return resp
 
 
 @app.route("/api/weather")

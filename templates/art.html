@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<!-- ======================================================
+     强制反缓存：彻底解决浏览器返回旧版导致“看不到控件”的问题
+     三保险：HTTP 响应头 + HTML meta + 版本号
+     ====================================================== -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0, private" />
+<meta http-equiv="Pragma"        content="no-cache" />
+<meta http-equiv="Expires"       content="0" />
+<title>CYBER_WEATHER // DATA_POETICS // art_2077_v3.0</title>
+<style>
+  /* =============== 页面总样式（纯黑沉浸极简） =============== */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: #000;
+    color: #e6e6e6;
+    font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+    overflow: hidden;   /* 无滚动条 */
+    cursor: crosshair;
+  }
+  /* 全屏 Canvas 粒子层 */
+  #stage {
+    position: fixed; inset: 0;
+    width: 100vw; height: 100vh;
+    display: block;
+    z-index: 0;
+  }
+  /* =============== HUD 左上角（城市 // 温度 // 天气） =============== */
+  #hud {
+    position: fixed;
+    left: 28px;
+    top:  28px;
+    z-index: 5;
+    font-size: 14px;
+    line-height: 1.6;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.85);
+    text-shadow: 0 0 6px rgba(0,0,0,0.9), 0 0 18px currentColor;
+    pointer-events: none;
+    user-select: none;
+    transition: color 1600ms ease;
+  }
+  #hud .line1 {
+    font-weight: bold;
+    font-size: 15px;
+    color: #ffffff;
+  }
+  #hud .line2 {
+    color: rgba(220,220,220,0.55);
+    font-size: 12px;
+    margin-top: 4px;
+    letter-spacing: 2.5px;
+  }
+  #hud .tag {
+    display: inline-block;
+    padding: 1px 8px;
+    margin-left: 6px;
+    border: 1px solid rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.85);
+    font-size: 10px;
+    letter-spacing: 2px;
+    border-radius: 2px;
+  }
+  /* =============== 城市切换下拉（底部居中 · 霓虹胶囊脉冲 · 一眼可见） =============== */
+  #city-wrapper {
+    position: fixed;
+    left: 50%;
+    bottom: 40px;
+    transform: translateX(-50%);
+    z-index: 9999;                      /* 置顶，绝对不被 canvas 盖住 */
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    user-select: none;
+    padding: 10px 20px;
+    background: rgba(0, 0, 0, 0.78);
+    border: 1px solid rgba(0, 255, 242, 0.88);
+    border-radius: 999px;                 /* 胶囊形状 */
+    box-shadow:
+      0 0 20px rgba(0, 255, 242, 0.42),
+      0 0 55px rgba(0, 255, 242, 0.22),
+      0 0 110px rgba(255, 0, 170, 0.12),
+      inset 0 0 12px rgba(0, 255, 242, 0.18);
+    animation: cityPulse 2.6s ease-in-out infinite;   /* 持续脉冲呼吸，一眼看到 */
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  /* 脉冲呼吸动画 —— 提示用户“这里有交互控件” */
+  @keyframes cityPulse {
+    0%, 100% {
+      box-shadow:
+        0 0 18px rgba(0, 255, 242, 0.35),
+        0 0 45px rgba(0, 255, 242, 0.18),
+        0 0 90px rgba(255, 0, 170, 0.08),
+        inset 0 0 10px rgba(0, 255, 242, 0.14);
+    }
+    50% {
+      box-shadow:
+        0 0 28px rgba(0, 255, 242, 0.65),
+        0 0 70px rgba(0, 255, 242, 0.35),
+        0 0 150px rgba(255, 0, 170, 0.22),
+        inset 0 0 16px rgba(0, 255, 242, 0.25);
+    }
+  }
+  #city-wrapper .label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: rgba(245, 245, 245, 0.96);     /* 接近纯白（对比度） */
+    text-shadow: 0 0 6px rgba(0, 255, 242, 0.7), 0 0 16px rgba(0, 255, 242, 0.35);
+    white-space: nowrap;
+  }
+  #city-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: rgba(10, 10, 20, 0.92);
+    color: #ffffff;
+    border: 1px solid rgba(255, 0, 170, 0.85);   /* 霓虹粉 高对比 */
+    border-radius: 999px;
+    padding: 8px 44px 8px 18px;
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 2.5px;
+    outline: none;
+    cursor: pointer;
+    min-width: 260px;
+    box-shadow:
+      0 0 18px rgba(255, 0, 170, 0.35),
+      0 0 45px rgba(0, 255, 242, 0.15),
+      inset 0 0 10px rgba(255, 0, 170, 0.10);
+    transition: border-color 1400ms ease,
+                box-shadow 1400ms ease,
+                color 1400ms ease,
+                background-color 400ms ease;
+    position: relative;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='10' viewBox='0 0 12 10'><polyline points='1,1 6,9 11,1' fill='none' stroke='%23ff00aa' stroke-width='1.6'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    font-weight: 600;
+  }
+  #city-select:hover,
+  #city-select:focus {
+    box-shadow:
+      0 0 30px rgba(255, 0, 170, 0.55),
+      0 0 70px rgba(0, 255, 242, 0.30);
+    border-color: rgba(0, 255, 242, 0.95);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='10' viewBox='0 0 12 10'><polyline points='1,1 6,9 11,1' fill='none' stroke='%2300fff2' stroke-width='1.6'/></svg>");
+  }
+  #city-select option {
+    background: #050510;
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+  }
+  /* 角标：右下小提示 */
+  #foot {
+    position: fixed;
+    right: 20px;
+    bottom: 18px;
+    font-size: 10px;
+    color: rgba(200,200,200,0.25);
+    letter-spacing: 3px;
+    z-index: 5;
+    user-select: none;
+    pointer-events: none;
+  }
+  #load {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; letter-spacing: 4px;
+    color: rgba(180,180,180,0.8);
+    background: rgba(0,0,0,0.7);
+    z-index: 20;
+    transition: opacity 800ms ease;
+  }
+</style>
+</head>
+<body>
+
+  <canvas id="stage"></canvas>
+
+  <!-- HUD 左上角 极简信息 -->
+  <div id="hud">
+    <div class="line1" id="hud-line1">
+      <span id="city-name">INITIALIZING</span>
+      <span class="tag" id="hue-tag">HUE · 200</span>
+    </div>
+    <div class="line2" id="hud-line2">
+      <span id="hud-temp">--</span> &nbsp;//&nbsp;
+      <span id="hud-desc">WAITING_FOR_DATA</span> &nbsp;//&nbsp;
+      <span id="hud-wind">WIND 0.0</span>
+    </div>
+  </div>
+
+  <!-- 城市切换下拉（左下角） -->
+  <div id="city-wrapper">
+    <span class="label">CITY</span>
+    <select id="city-select" autocomplete="off">
+      <option value="beijing">   北京 BEIJING</option>
+      <option value="shanghai">  上海 SHANGHAI</option>
+      <option value="guangzhou"> 广州 GUANGZHOU</option>
+      <option value="shenzhen">  深圳 SHENZHEN</option>
+      <option value="chengdu">   成都 CHENGDU</option>
+      <option value="hangzhou">  杭州 HANGZHOU</option>
+      <option value="wuhan">     武汉 WUHAN</option>
+      <option value="chongqing"> 重庆 CHONGQING</option>
+      <option value="xian">      西安 XI&apos;AN</option>
+      <option value="hongkong">  香港 HONG KONG</option>
+    </select>
+  </div>
+
+  <div id="foot">DATA_POETICS_v3.077 · LAYERS(150+250+50) · CLICK_FOR_SHOCKWAVE · 50PX_ATTRACT/150PX_REPEL</div>
+  <div id="load">CONNECTION_OPEN // FETCHING_DATA</div>
+
+<script>
+/* =========================================================================
+   数据诗学 Data Poetics v3 — 分层粒子系统 + 丰富交互
+   -------------------------------------------------------------------------
+   01. 分层：BG(150) 慢速大气底色 + MAIN(250) 主体 + HL(50) 闪烁星点  → 共 450
+   02. 色相：四段 0°C→210  15°C→160  25°C→40  35°C→0
+       大小（新增）：低温(-10°C)收缩到 0.6x，高温(45°C)膨胀到 1.8x
+       拖尾长度（新增）：风慢=短(暗盖重) 风快=长(暗盖轻)
+   03. 形状：sunny 圆发光  rain 椭圆拉长下落  snow 六角形三线交叉  cloudy 团状
+   04. 连线：主体粒子距离<80px 时画线（星云网络感）
+   05. 背景径向渐变：中心略亮边缘黑（景深感）
+   06. 鼠标：50px 内环吸引 + 150px 外环排斥（getBoundingClientRect 修正坐标 + NaN/越界保护）
+       点击：聚拢→炸开 冲击波（2 秒恢复）
+   07. 闪烁：所有粒子 size/alpha 按 twinkleSpeed 正弦波动（HL 层更明显）
+   ========================================================================= */
+(function () {
+  'use strict';
+
+  const canvas   = document.getElementById('stage');
+  const ctx      = canvas.getContext('2d');
+  const sel      = document.getElementById('city-select');
+  const loadDiv  = document.getElementById('load');
+  const hudName  = document.getElementById('city-name');
+  const hudTemp  = document.getElementById('hud-temp');
+  const hudDesc  = document.getElementById('hud-desc');
+  const hudWind  = document.getElementById('hud-wind');
+  const hueTag   = document.getElementById('hue-tag');
+
+  /* ==========================================================
+     0. Canvas 尺寸自适应 + DPR
+     ========================================================== */
+  let W = 0, H = 0, DPR = Math.min(2, window.devicePixelRatio || 1);
+  function resize() {
+    // clientWidth/clientHeight 是只读 getter，必须读取而非赋值
+    W = canvas.clientWidth  || window.innerWidth;
+    H = canvas.clientHeight || window.innerHeight;
+    canvas.width  = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  /* ==========================================================
+     1. 分层粒子系统（150 + 250 + 50 = 450 ≤ 500）
+     layer: 'bg' / 'main' / 'hl'
+     ========================================================== */
+  const BG_COUNT   = 150;
+  const MAIN_COUNT = 250;
+  const HL_COUNT   = 50;
+  const PARTICLE_COUNT = BG_COUNT + MAIN_COUNT + HL_COUNT;
+  const particles = [];
+  // 把 main 层单独留索引，连线时只遍历 main 层（O(250²)=62500 对比计算，可接受）
+  const mainIndices = [];
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+
+  function spawn(layer, idxWithinLayer) {
+    let baseSize, size, alpha, speedAmp, twSpdA, twPhiAmp;
+    if (layer === 'bg') {
+      baseSize  = rand(4, 8);
+      alpha     = rand(0.10, 0.30);
+      speedAmp  = 0.18;  // 极慢
+      twSpdA    = rand(0.0005, 0.0018);
+      twPhiAmp  = 0.25;
+    } else if (layer === 'hl') {
+      baseSize  = rand(1, 3);
+      alpha     = rand(0.80, 1.00);
+      speedAmp  = 1.60;  // 稍快 + 闪烁
+      twSpdA    = rand(0.004, 0.014);
+      twPhiAmp  = 1.20;
+    } else {  // main
+      baseSize  = rand(2, 5);
+      alpha     = rand(0.40, 0.70);
+      speedAmp  = 1.00;
+      twSpdA    = rand(0.001, 0.0045);
+      twPhiAmp  = 0.60;
+    }
+    const sx = rand(-0.6, 0.6) * speedAmp;
+    const sy = rand(-0.6, 0.6) * speedAmp;
+    return {
+      layer:     layer,
+      x:         Math.random() * W,
+      y:         Math.random() * H,
+      baseSize:  baseSize,
+      size:      baseSize,
+      speedX:    sx,
+      speedY:    sy,
+      baseSpeedX: sx,
+      baseSpeedY: sy,
+      speedAmp:  speedAmp,
+      hue:       rand(160, 230),
+      alpha:     alpha,
+      baseAlpha: alpha,
+      rot:       rand(0, Math.PI * 2),
+      rotSpeed:  rand(-0.03, 0.03),
+      // 自身闪烁
+      twSpeed:   twSpdA,
+      twPhase:   rand(0, Math.PI * 2),
+      twAmp:     twPhiAmp,
+      // 拖尾历史
+      trail:     new Array(3).fill(null).map(() => ({x: 0, y: 0}))
+    };
+  }
+
+  let k = 0;
+  for (let i = 0; i < BG_COUNT;   i++, k++) particles.push(spawn('bg',   i));
+  for (let i = 0; i < MAIN_COUNT; i++, k++) { particles.push(spawn('main', i)); mainIndices.push(k); }
+  for (let i = 0; i < HL_COUNT;   i++, k++) particles.push(spawn('hl',   i));
+
+  /* ==========================================================
+     2. 目标状态（城市切换 → 当前 → 目标 lerp 逼近）
+     ========================================================== */
+  const state = {
+    // 色相
+    currentHue: 200,    targetHue:  200,
+    // 速度倍率（风速驱动）
+    currentSpeedMul: 1.0,  targetSpeedMul: 1.0,
+    // 尺寸倍率（温度驱动：高温膨胀，低温收缩）
+    currentSizeMul:  1.0,  targetSizeMul:  1.0,
+    // 拖尾强度（拖尾=每帧盖多少半透明黑；值越小拖尾越长。风速→映射成该值）
+    currentTrailAlpha: 0.18,  targetTrailAlpha: 0.18,
+    // 天气驱动形态
+    currentShape: 'sunny',  targetShape: 'sunny',
+    shapeT: 1.0, shapeDuration: 1200, shapeLast: 0,
+    // 鼠标（cx,cy 是相对 canvas 坐标；x,y 是原始 clientX/Y）
+    mouse: { x: -9999, y: -9999, cx: -9999, cy: -9999, active: false },
+    // 点击爆炸冲击波
+    shock: { active:false, x:0, y:0, startT:0, duration: 1700 },
+    // 当前城市
+    cityKey: 'beijing', cityLabel: 'BEIJING',
+  };
+
+  /* ==========================================================
+     3. 色相映射 4 段线性
+     ========================================================== */
+  function tempToHue(temp) {
+    const t = Number(temp); if (isNaN(t)) return 200;
+    if (t <= 0)  return 210;
+    if (t <= 15) return 210 + (160 - 210) * (t / 15);
+    if (t <= 25) return 160 + (40 - 160)  * ((t - 15) / 10);
+    if (t <= 35) return 40  + (0  - 40)   * ((t - 25) / 10);
+    return 0;
+  }
+
+  /* ==========================================================
+     3b. 温度→尺寸倍率（-10→0.6, 0→0.85, 20→1.0, 35→1.4, 45→1.8）
+     ========================================================== */
+  function tempToSizeMul(temp) {
+    const t = Number(temp); if (isNaN(t)) return 1.0;
+    if (t <= -10) return 0.60;
+    if (t <=   0) return 0.60 + (0.85 - 0.60) * ((t + 10) / 10);
+    if (t <=  20) return 0.85 + (1.00 - 0.85) * ((t -  0) / 20);
+    if (t <=  35) return 1.00 + (1.40 - 1.00) * ((t - 20) / 15);
+    if (t <=  45) return 1.40 + (1.80 - 1.40) * ((t - 35) / 10);
+    return 1.80;
+  }
+
+  /* ==========================================================
+     3c. 风速→拖尾 Alpha（风小=拖尾短  alpha 大；风大=拖尾长  alpha 小）
+         风速 0 m/s → 0.24（短），  60 m/s → 0.06（长）
+     ========================================================== */
+  function windToTrailAlpha(w) {
+    w = Math.max(0, Math.min(60, Number(w) || 0));
+    return 0.24 - 0.18 * (w / 60);  // 0.24 .. 0.06
+  }
+
+  /* ==========================================================
+     4. icon/desc → shape
+     ========================================================== */
+  function iconToShape(icon, desc, temp) {
+    const i = String(icon || '').toLowerCase();
+    const d = String(desc || '').toLowerCase();
+    if (i === 'snow' || /雪|snow/.test(d) || (!isNaN(temp) && Number(temp) <= -2)) return 'snow';
+    if (['rain','drizzle','thunder'].includes(i) || /雨|rain|thunder/.test(d)) return 'rain';
+    if (['cloudy','fog'].includes(i) || /多云|阴|雾|cloud|fog/.test(d)) return 'cloudy';
+    return 'sunny';
+  }
+
+  /* ==========================================================
+     5. 鼠标事件（核心修复：getBoundingClientRect + NaN/越界保护）
+     ========================================================== */
+  function setMouseFromEvent(e) {
+    const rect = canvas.getBoundingClientRect();
+    // e.clientX/Y 是相对视口；减去 rect.left/top 得到相对 canvas 坐标
+    let cx = (e.clientX != null ? e.clientX : 0) - rect.left;
+    let cy = (e.clientY != null ? e.clientY : 0) - rect.top;
+    // NaN / Infinite 保护
+    if (!isFinite(cx) || !isFinite(cy)) { cx = -9999; cy = -9999; }
+    // 越出画布则忽略（不参与排斥/吸引）
+    if (cx < 0 || cx > W || cy < 0 || cy > H) { cx = -9999; cy = -9999; }
+    state.mouse.x = e.clientX; state.mouse.y = e.clientY;
+    state.mouse.cx = cx;      state.mouse.cy = cy;
+    state.mouse.active = (cx !== -9999);
+  }
+
+  canvas.addEventListener('mousemove', setMouseFromEvent);
+  canvas.addEventListener('mouseleave', function () {
+    state.mouse.active = false;
+    state.mouse.cx = -9999; state.mouse.cy = -9999;
+  });
+  canvas.addEventListener('mouseout',   function () { state.mouse.active = false; });
+
+  // 触屏支持
+  window.addEventListener('touchstart', function (e) {
+    if (e.touches[0]) setMouseFromEvent({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
+  }, { passive: true });
+  window.addEventListener('touchmove', function (e) {
+    if (e.touches[0]) setMouseFromEvent({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
+  }, { passive: true });
+  window.addEventListener('touchend', function () { state.mouse.active = false; });
+
+  // 点击爆炸（聚拢→炸开）
+  canvas.addEventListener('mousedown', function (e) {
+    const rect = canvas.getBoundingClientRect();
+    let cx = e.clientX - rect.left;
+    let cy = e.clientY - rect.top;
+    if (!isFinite(cx) || !isFinite(cy)) return;
+    if (cx < 0 || cx > W || cy < 0 || cy > H) return;
+    state.shock.active = true;
+    state.shock.x = cx;
+    state.shock.y = cy;
+    state.shock.startT = performance.now();
+  });
+
+  /* ==========================================================
+     6. 应用天气数据 → 更新 target 状态
+     ========================================================== */
+  function applyWeather(data) {
+    if (!data || !data.current) return;
+    const cur = data.current;
+
+    state.targetHue      = tempToHue(cur.temperature);
+    state.targetSizeMul  = tempToSizeMul(cur.temperature);
+
+    const w = Math.max(0, Number(cur.wind_speed) || 0);
+    state.targetSpeedMul   = 0.5 + Math.min(2.5, w / 20);
+    state.targetTrailAlpha = windToTrailAlpha(w);
+
+    const ns = iconToShape(cur.icon, cur.description, cur.temperature);
+    if (ns !== state.currentShape) {
+      state.targetShape = ns;
+      state.shapeT = 0;
+      state.shapeLast = performance.now();
+    }
+
+    const labelMap = {
+      beijing:'BEIJING', shanghai:'SHANGHAI', guangzhou:'GUANGZHOU',
+      shenzhen:'SHENZHEN', chengdu:'CHENGDU', hangzhou:'HANGZHOU',
+      wuhan:'WUHAN', chongqing:'CHONGQING', xian:"XI'AN", hongkong:'HONG KONG'
+    };
+    state.cityLabel = labelMap[state.cityKey] || (state.cityKey||'').toUpperCase();
+    hudName.textContent = state.cityLabel;
+    hudTemp.textContent = `${Math.round(cur.temperature)}°C`;
+    hudDesc.textContent = String(cur.description || cur.icon || '').toUpperCase();
+    hudWind.textContent = 'WIND ' + (cur.wind_speed != null ? Number(cur.wind_speed).toFixed(1) + ' m/s' : '--');
+
+    hueTag.textContent = 'HUE · ' + String(Math.round(state.targetHue)).padStart(3,'0');
+    document.documentElement.style.setProperty('--ambience-hue', String(state.targetHue));
+    sel.style.setProperty('border-color', `hsla(${state.targetHue.toFixed(1)}, 100%, 65%, 0.7)`);
+    sel.style.setProperty('box-shadow',
+      `0 0 18px hsla(${state.targetHue.toFixed(1)}, 100%, 65%, 0.28), 0 0 50px hsla(${(state.targetHue+150)%360}, 100%, 60%, 0.12)`);
+  }
+
+  /* ==========================================================
+     7. fetch 切换城市
+     ========================================================== */
+  async function switchCity(key) {
+    state.cityKey = key;
+    try {
+      const res = await fetch('/api/weather?city=' + encodeURIComponent(key));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      applyWeather(data);
+    } catch (err) {
+      console.warn('天气获取失败，回退默认', err);
+      applyWeather({ current: { temperature: 23, icon: 'partly-cloudy', description: 'CLEAR', wind_speed: 4 } });
+    }
+  }
+  sel.addEventListener('change', function () { switchCity(sel.value); });
+
+  /* ==========================================================
+     8. 绘制单个粒子形状（4 种天气形态 + 两层之间 tween 过渡）
+     ========================================================== */
+  function drawOneShape(p, shape, hue, size, alpha) {
+    const x = p.x, y = p.y;
+    ctx.shadowColor = `hsla(${hue}, 100%, 65%, 0.85)`;
+    ctx.shadowBlur  = p.layer === 'hl' ? 18 : (p.layer === 'bg' ? 22 : 12);
+    ctx.fillStyle   = `hsla(${hue}, 100%, 65%, ${alpha})`;
+    ctx.strokeStyle = `hsla(${hue}, 100%, 75%, ${alpha})`;
+
+    switch (shape) {
+      case 'sunny':
+        ctx.beginPath();
+        ctx.arc(x, y, Math.max(0.5, size), 0, Math.PI * 2);
+        ctx.fill();
+        break;
+
+      case 'rain': {
+        // 细长椭圆 + 下落方向（拉长 Y，压扁 X）
+        ctx.save();
+        ctx.translate(x, y);
+        const spd = Math.max(1.2, state.currentSpeedMul);
+        // 方向：速度合成方向，至少向下
+        const angle = Math.atan2(Math.max(1, p.speedY + 1.5 * spd), p.speedX || 0.01);
+        ctx.rotate(angle);
+        const rx = Math.max(0.4, size * 0.40);
+        const ry = Math.max(1.5, size * (1.6 + 0.8 * spd));
+        ctx.beginPath();
+        ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        break;
+      }
+
+      case 'snow': {
+        // 六角形 = 三条交叉线（60°）
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(p.rot);
+        const r = size * 1.8;
+        ctx.lineWidth = Math.max(0.6, size * 0.28);
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = `hsla(${hue}, 100%, 88%, ${alpha})`;
+        ctx.shadowBlur = 10;
+        for (let k = 0; k < 3; k++) {
+          ctx.rotate(Math.PI / 3);  // 60°
+          ctx.beginPath();
+          ctx.moveTo(0, -r);
+          ctx.lineTo(0,  r);
+          // 小分叉
+          ctx.moveTo( 0, -r * 0.55);
+          ctx.lineTo( r * 0.35, -r * 0.8);
+          ctx.moveTo( 0,  r * 0.55);
+          ctx.lineTo(-r * 0.35,  r * 0.8);
+          ctx.stroke();
+        }
+        ctx.restore();
+        break;
+      }
+
+      case 'cloudy': {
+        // 模糊团状 = 径向渐变
+        const r = Math.max(1, size * 1.9);
+        const g = ctx.createRadialGradient(x, y, 0.5, x, y, r);
+        g.addColorStop(0,   `hsla(${hue}, 70%, 75%, ${Math.min(1, alpha + 0.2)})`);
+        g.addColorStop(0.5, `hsla(${hue}, 50%, 60%, ${alpha * 0.35})`);
+        g.addColorStop(1,   `hsla(${hue}, 40%, 50%, 0)`);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+
+      default:
+        ctx.beginPath();
+        ctx.arc(x, y, Math.max(0.5, size), 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  }
+
+  function drawParticle(p) {
+    const shapeA = state.currentShape;
+    const shapeB = state.targetShape;
+    const t = Math.min(1, state.shapeT);
+    const hue = p.hue;
+
+    // 闪烁正弦
+    const tw = 0.5 + 0.5 * Math.sin(performance.now() * p.twSpeed + p.twPhase);
+    const sizeAmplify = 0.55 + 0.65 * tw;            // 0.55~1.20
+    const alphaAmplify = 0.55 + 0.45 * tw;
+
+    // 基础尺寸：p.baseSize × 温度尺寸倍率 × 天气形态倍率 × 闪烁
+    let shapeMulA = 1.0, shapeMulB = 1.0;
+    switch (shapeA) {
+      case 'cloudy': shapeMulA = 1.00; break;
+      case 'snow':   shapeMulA = 0.85; break;
+      case 'rain':   shapeMulA = 0.55; break;
+      default:       shapeMulA = 0.65;
+    }
+    switch (shapeB) {
+      case 'cloudy': shapeMulB = 1.00; break;
+      case 'snow':   shapeMulB = 0.85; break;
+      case 'rain':   shapeMulB = 0.55; break;
+      default:       shapeMulB = 0.65;
+    }
+    const sMul = state.currentSizeMul * (shapeMulA * (1 - t) + shapeMulB * t);
+    const size = Math.max(0.5, p.baseSize * sizeAmplify * sMul);
+    const alpha = Math.max(0.01, p.baseAlpha * alphaAmplify);
+
+    ctx.globalAlpha = alpha * (1 - t) * 0.95;
+    drawOneShape(p, shapeA, hue, size, alpha);
+    if (t < 1 && shapeA !== shapeB) {
+      ctx.globalAlpha = alpha * t * 0.95;
+      drawOneShape(p, shapeB, hue, size, alpha);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* ==========================================================
+     9. 粒子连线：main 层粒子两两距离 < CONNECTION_DIST 时绘制半透明线
+     ========================================================== */
+  const CONNECTION_DIST = 80;
+  const CONN_DIST2 = CONNECTION_DIST * CONNECTION_DIST;
+  function drawConnections() {
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.lineCap = 'round';
+    for (let a = 0; a < mainIndices.length; a++) {
+      const i = mainIndices[a];
+      const pi = particles[i];
+      for (let b = a + 1; b < mainIndices.length; b++) {
+        const j = mainIndices[b];
+        const pj = particles[j];
+        const dx = pi.x - pj.x;
+        const dy = pi.y - pj.y;
+        const d2 = dx*dx + dy*dy;
+        if (d2 >= CONN_DIST2) continue;
+        const d = Math.sqrt(d2);
+        const alpha = 0.22 * (1 - d / CONNECTION_DIST);
+        const avgHue = (pi.hue + pj.hue) * 0.5;
+        ctx.strokeStyle = `hsla(${avgHue}, 100%, 70%, ${alpha})`;
+        ctx.lineWidth = 0.5 + 0.6 * (1 - d / CONNECTION_DIST);
+        ctx.shadowColor = `hsla(${avgHue}, 100%, 60%, ${alpha*0.6})`;
+        ctx.shadowBlur  = 4;
+        ctx.beginPath();
+        ctx.moveTo(pi.x, pi.y);
+        ctx.lineTo(pj.x, pj.y);
+        ctx.stroke();
+      }
+    }
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  /* ==========================================================
+     10. 背景径向渐变（中心微亮 边缘全黑 → 景深感）
+     ========================================================== */
+  function drawBackgroundVignette() {
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    const cx = W * 0.5, cy = H * 0.5;
+    const R  = Math.max(W, H) * 0.75;
+    const h  = state.currentHue;
+    const g  = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+    // 中心带当前色相的微光，随温度变化颜色
+    g.addColorStop(0,   `hsla(${h}, 70%, 40%, 0.14)`);
+    g.addColorStop(0.4, `hsla(${h}, 55%, 25%, 0.05)`);
+    g.addColorStop(1,   `rgba(0, 0, 0, 1.00)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+
+  /* ==========================================================
+     11. requestAnimationFrame 主循环
+     ========================================================== */
+  let RAF_LAST = 0;
+  function frame(now) {
+    const dt = Math.min(50, now - RAF_LAST) / 16.67;
+    RAF_LAST = now;
+
+    // —— 缓动逼近状态 ——
+    state.currentHue       += (state.targetHue       - state.currentHue)       * 0.015;
+    state.currentSpeedMul  += (state.targetSpeedMul  - state.currentSpeedMul)  * 0.030;
+    state.currentSizeMul   += (state.targetSizeMul   - state.currentSizeMul)   * 0.035;
+    state.currentTrailAlpha+= (state.targetTrailAlpha- state.currentTrailAlpha)* 0.025;
+
+    if (state.shapeT < 1) {
+      const n2 = performance.now();
+      state.shapeT = Math.min(1, state.shapeT + (n2 - state.shapeLast) / state.shapeDuration);
+      state.shapeLast = n2;
+      if (state.shapeT >= 1) state.currentShape = state.targetShape;
+    }
+
+    // 冲击波状态推进
+    if (state.shock.active) {
+      const prog = (now - state.shock.startT) / state.shock.duration;
+      if (prog >= 1) state.shock.active = false;
+    }
+
+    // —— 每帧：先半透明盖黑实现“拖尾”（厚度 = currentTrailAlpha）——
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = `rgba(0,0,0,${state.currentTrailAlpha.toFixed(3)})`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+
+    // —— 背景径向渐变（景深感）——
+    drawBackgroundVignette();
+
+    // —— 鼠标坐标（NaN/越界保护后）——
+    const mActive = state.mouse.active;
+    const mCX = mActive ? state.mouse.cx : -9999;
+    const mCY = mActive ? state.mouse.cy : -9999;
+    const REPEL_R2 = 150 * 150;
+    const ATTRACT_R = 50;
+    const ATTRACT_R2 = ATTRACT_R * ATTRACT_R;
+
+    // —— 冲击波参数 ——
+    let shockProg = 0;
+    let shockX = 0, shockY = 0;
+    let shockActive = state.shock.active;
+    if (shockActive) {
+      shockProg = Math.min(1, (now - state.shock.startT) / state.shock.duration);
+      shockX = state.shock.x;
+      shockY = state.shock.y;
+    }
+
+    // —— 先绘制连线（main 层之间，80px 内）——
+    drawConnections();
+
+    // —— 使用 lighter 叠加绘制粒子（发光汇流成气流感）——
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+
+      // 粒子色相：围绕全局 currentHue ±18° 飘动（HL 层 ±30° 更缤纷）
+      const hueVar = p.layer === 'hl' ? 30 : 18;
+      p.hue = (state.currentHue + Math.sin(now * 0.0003 + i) * hueVar + 360) % 360;
+
+      // 形状 → 基础速度偏向
+      const shape = state.shapeT < 1 ? state.currentShape : state.targetShape;
+      let vx = p.baseSpeedX;
+      let vy = p.baseSpeedY;
+      const sm = state.currentSpeedMul * p.speedAmp;
+      if (shape === 'rain')        { vx *= 1.2;  vy = Math.max(vy + 1.2 * sm, 2.2 * sm); }
+      else if (shape === 'snow')   { vx *= 0.7;  vy = Math.max(vy + 0.2 * sm, 0.5 * sm); p.rot += p.rotSpeed; }
+      else if (shape === 'cloudy') { vx *= 0.4;  vy *= 0.4; }
+      else /* sunny */             { vx *= 0.85; vy *= 0.85; }
+
+      // 乘以全局速度倍率
+      vx *= state.currentSpeedMul;
+      vy *= state.currentSpeedMul;
+
+      // —— 鼠标排斥/吸引 双环 ——
+      if (mActive) {
+        const dx = p.x - mCX;
+        const dy = p.y - mCY;
+        const d2 = dx*dx + dy*dy;
+        if (d2 < REPEL_R2 && d2 > 0.01) {
+          const d = Math.sqrt(d2);
+          if (d2 < ATTRACT_R2) {
+            // 内环 50px 内 轻微吸引（凝视感）
+            const f = 1.8 * (1 - d / ATTRACT_R);
+            vx -= (dx / d) * f;
+            vy -= (dy / d) * f;
+          } else {
+            // 50~150px 排斥
+            const f = 4.2 * (1 - (d - ATTRACT_R) / (150 - ATTRACT_R));
+            const f2 = f * f * 0.35 + 0.1;
+            vx += (dx / d) * f2;
+            vy += (dy / d) * f2;
+          }
+        }
+      }
+
+      // —— 点击冲击波：聚拢→炸开 ——
+      if (shockActive) {
+        const dx = p.x - shockX;
+        const dy = p.y - shockY;
+        const d  = Math.sqrt(dx*dx + dy*dy) + 0.001;
+        if (shockProg < 0.30) {
+          // 0~30%: 聚拢
+          const strength = 6.0 * (1 - shockProg / 0.30);
+          vx -= (dx / d) * strength;
+          vy -= (dy / d) * strength;
+        } else {
+          // 30%~100%: 炸开（距离越近推力越大 + 指数衰减）
+          const p2 = (shockProg - 0.3) / 0.7;  // 0..1
+          const strength = 11.0 * (1 - p2) * Math.exp(-d / 240);
+          vx += (dx / d) * strength;
+          vy += (dy / d) * strength;
+        }
+      }
+
+      // 阻尼 + 速度整合
+      p.speedX = p.speedX * 0.82 + vx * 0.18;
+      p.speedY = p.speedY * 0.82 + vy * 0.18;
+      p.x     += p.speedX * dt;
+      p.y     += p.speedY * dt;
+
+      // 环绕边界（wrap）
+      if (p.x < -50) p.x = W + 50;
+      else if (p.x > W + 50) p.x = -50;
+      if (p.y < -50) p.y = H + 50;
+      else if (p.y > H + 50) p.y = -50;
+
+      drawParticle(p);
+    }
+
+    ctx.restore();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(function (t) { RAF_LAST = t; frame(t); });
+
+  /* ==========================================================
+     12. 启动：默认北京；6 秒硬超时强制移除 loading
+     ========================================================== */
+  (async function init() {
+    let forceHidden = false;
+    const forceT = setTimeout(function () {
+      forceHidden = true;
+      loadDiv.style.opacity = '0';
+      setTimeout(function () { loadDiv.style.display = 'none'; }, 900);
+    }, 6000);
+
+    try { await switchCity('beijing'); }
+    catch (e) { /* anti-block 兜底 */ }
+
+    setTimeout(function () {
+      if (!forceHidden) {
+        clearTimeout(forceT);
+        loadDiv.style.opacity = '0';
+        setTimeout(function () { loadDiv.style.display = 'none'; }, 900);
+      }
+    }, 1500);
+
+    setTimeout(function () { state.shapeT = 1; state.currentShape = state.targetShape; }, 3000);
+  })();
+
+})();
+</script>
+</body>
+</html>

@@ -1,19 +1,56 @@
 :root {
-    --border-cyber: #00fff2;
-    --border-secondary: #ff00aa;
-    --accent-cyan: #00fff2;
-    --accent-pink: #ff00aa;
-    --glow-cyan: 0 0 10px rgba(0, 255, 242, 0.6);
-    --bg-dark: #0a0a1a;
-    --bg-panel: rgba(10, 15, 30, 0.85);
-    --text-primary: #00fff2;
-    --text-secondary: #a0a0c0;
+    /* ==== 城市氛围色相（默认：050 过渡起点） ====
+       低温 0°C  → 220 (BLUE 蓝)
+       中温 20°C → 040 (ORANGE 橙)
+       高温 30°C → 010 (RED 红)   */
+    --ambience-hue: 50;
+    --ambience-hue-secondary: calc(var(--ambience-hue) + 140);
+
+    /* 主色 由色相动态驱动（HSL 模式，保证所有元素同步变色） */
+    --accent-main:     hsl(var(--ambience-hue), 100%, 60%);
+    --accent-main-2:   hsl(var(--ambience-hue), 100%, 48%);
+    --accent-main-3:   hsl(var(--ambience-hue), 100%, 35%);
+    --accent-sub:      hsl(var(--ambience-hue-secondary), 100%, 58%);
+    --accent-glow-a:   hsla(var(--ambience-hue), 100%, 60%, 0.60);
+    --accent-glow-b:   hsla(var(--ambience-hue), 100%, 60%, 0.18);
+    --accent-glow-c:   hsla(var(--ambience-hue), 100%, 60%, 0.06);
+    --accent-sub-glow: hsla(var(--ambience-hue-secondary), 100%, 58%, 0.60);
+
+    /* 背景：随色相轻微偏移，营造整体氛围 */
+    --bg-dark:         hsl(var(--ambience-hue), 50%, 5%);
+    --bg-panel:        hsla(var(--ambience-hue), 45%, 9%, 0.88);
+    --bg-topbar-a:     hsla(var(--ambience-hue), 80%, 10%, 0.97);
+    --bg-topbar-b:     hsla(var(--ambience-hue), 80%, 6%,  0.92);
+    --text-primary:    hsl(var(--ambience-hue), 90%, 70%);
+    --text-secondary:  hsl(var(--ambience-hue), 20%, 72%);
+
+    /* 兼容保留旧变量名，平滑升级（全部派生自主色相） */
+    --border-cyber:    var(--accent-main);
+    --border-secondary:var(--accent-sub);
+    --accent-cyan:     var(--accent-main);
+    --accent-pink:     var(--accent-sub);
+    --glow-cyan:       0 0 10px var(--accent-glow-a);
 }
 
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+}
+
+html,
+body {
+    /* === 核心：所有颜色变化 → 2 秒平滑过渡 === */
+    transition:
+        background-color 2000ms ease,
+        color 2000ms ease;
+}
+
+:root {
+    /* 所有 CSS 变量变化也平滑过渡（浏览器支持） */
+    transition: --ambience-hue 2000ms ease,
+                --ambience-hue-secondary 2000ms ease,
+                all 2000ms ease;
 }
 
 body {
@@ -23,6 +60,8 @@ body {
     min-height: 100vh;
     overflow-x: hidden;
     position: relative;
+    /* body 级别的过渡，给背景色也加上 */
+    transition: background 2000ms ease, color 2000ms ease;
 }
 
 .scanline {
@@ -50,23 +89,36 @@ body {
     right: 0;
     bottom: 0;
     background-image:
-        linear-gradient(rgba(0, 255, 242, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 255, 242, 0.03) 1px, transparent 1px);
+        linear-gradient(hsl(var(--ambience-hue), 100%, 60%, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(var(--ambience-hue), 100%, 60%, 0.045) 1px, transparent 1px);
     background-size: 50px 50px;
     pointer-events: none;
     z-index: 1;
+    transition: background-image 2000ms ease;
 }
 
 .top-bar {
-    background: linear-gradient(180deg, rgba(0, 30, 60, 0.95) 0%, rgba(0, 15, 30, 0.9) 100%);
+    background: linear-gradient(180deg, var(--bg-topbar-a) 0%, var(--bg-topbar-b) 100%);
     border-bottom: 2px solid var(--border-cyber);
     padding: 12px 30px;
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     position: relative;
     z-index: 100;
-    box-shadow: 0 4px 20px rgba(0, 255, 242, 0.2);
+    box-shadow: 0 4px 20px var(--accent-glow-b);
+    transition: background 2000ms ease,
+                border-color 2000ms ease,
+                box-shadow 2000ms ease,
+                color 2000ms ease;
+}
+
+/* 左侧：logo + 情绪标签（纵向） */
+.top-left {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    justify-content: center;
 }
 
 .logo {
@@ -99,6 +151,54 @@ body {
     font-size: 12px;
     letter-spacing: 1px;
     margin-left: 10px;
+    transition: color 2000ms ease;
+}
+
+/* ================================
+   城市氛围情绪标签（左上角）
+   ================================ */
+.mood-wrapper {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    letter-spacing: 3px;
+    padding: 5px 14px;
+    margin-left: 4px;
+    border: 1px solid hsl(var(--ambience-hue), 100%, 50%);
+    background: hsla(var(--ambience-hue), 100%, 50%, 0.08);
+    color: hsl(var(--ambience-hue), 90%, 70%);
+    border-radius: 2px;
+    text-shadow: 0 0 6px hsla(var(--ambience-hue), 100%, 60%, 0.55);
+    box-shadow: 0 0 12px hsla(var(--ambience-hue), 100%, 60%, 0.18),
+                inset 0 0 8px hsla(var(--ambience-hue), 100%, 60%, 0.10);
+    width: fit-content;
+    /* 情绪切换：2 秒平滑过渡（颜色、背景、边框、阴影、文字发光） */
+    transition:
+        color 2000ms ease,
+        border-color 2000ms ease,
+        background-color 2000ms ease,
+        text-shadow 2000ms ease,
+        box-shadow 2000ms ease;
+}
+.mood-tag {
+    color: hsl(var(--ambience-hue), 50%, 55%);
+    letter-spacing: 3px;
+    transition: color 2000ms ease;
+}
+.mood-label {
+    font-weight: bold;
+    font-size: 13px;
+    letter-spacing: 3px;
+    /* 核心情绪词用发光强调 */
+    text-shadow: 0 0 9px hsl(var(--ambience-hue), 100%, 70%),
+                 0 0 18px hsla(var(--ambience-hue), 100%, 60%, 0.6);
+    transition: color 2000ms ease, text-shadow 2000ms ease;
+}
+.mood-hue {
+    color: hsl(var(--ambience-hue), 25%, 55%);
+    font-family: 'Courier New', monospace;
+    transition: color 2000ms ease;
 }
 
 .status {
@@ -106,6 +206,8 @@ body {
     gap: 20px;
     font-size: 13px;
     color: var(--text-secondary);
+    padding-top: 8px;
+    transition: color 2000ms ease;
 }
 
 .status-item {
@@ -120,11 +222,18 @@ body {
     border-radius: 50%;
     display: inline-block;
     animation: blink 1.5s infinite;
+    transition: background-color 2000ms ease, box-shadow 2000ms ease;
 }
 
 .led-green { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
-.led-cyan { background: var(--accent-cyan); box-shadow: 0 0 8px var(--accent-cyan); }
-.led-pink { background: var(--accent-pink); box-shadow: 0 0 8px var(--accent-pink); }
+.led-cyan {
+    background: var(--accent-cyan);
+    box-shadow: 0 0 8px var(--accent-cyan);
+}
+.led-pink {
+    background: var(--accent-sub);
+    box-shadow: 0 0 8px var(--accent-sub);
+}
 
 @keyframes blink {
     0%, 100% { opacity: 1; }
@@ -147,7 +256,13 @@ body {
     border-radius: 4px;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 0 20px rgba(0, 255, 242, 0.15), inset 0 0 30px rgba(0, 255, 242, 0.03);
+    box-shadow: 0 0 20px var(--accent-glow-b),
+                inset 0 0 30px var(--accent-glow-c);
+    transition:
+        background 2000ms ease,
+        border-color 2000ms ease,
+        color 2000ms ease,
+        box-shadow 2000ms ease;
 }
 
 .panel::before {

@@ -56,9 +56,12 @@ document.addEventListener('DOMContentLoaded', function() {
     initTooltip();
     if (currentWeather) {
         renderCityDetail(currentWeather);
+        // 初始化时同步一次氛围（数据诗学 Data Poetics 主题）
+        try { updateAmbience(currentWeather); } catch(e) {}
     }
     fetchAllCitiesWeather();
     addLog('SYSTEM', '中国天气地图已激活');
+    addLog('DATA_POETICS', '氛围渲染引擎已启用');
 
     window.addEventListener('resize', function() {
         if (chartInstance) {
@@ -385,6 +388,121 @@ function getTemperatureColor(temp) {
     return '#ff4444';
 }
 
+/* =================================================================
+   城市氛围切换（数据诗学 Data Poetics）
+   -----------------------------------------------------------------
+   1) tempToHue  : 温度 → 色相 HSL 映射（平滑过渡）
+      0°C  → 220 (BLUE 蓝)
+      20°C → 040 (ORANGE 橙)
+      30°C → 010 (RED 红)
+   2) getMoodLabel: 温度 + 天气代码 → 6 类情绪词
+      晴朗 灼热 雨落 雪舞 雷暴 平静
+   3) updateAmbience : 将 hue 设置到 :root 的 CSS 变量，
+                        更新左上角情绪标签，全部 2 秒平滑过渡
+   ================================================================= */
+function tempToHue(temp) {
+    // ---- 边界截断 ----
+    let t = Number(temp);
+    if (isNaN(t)) t = 20;
+    if (t <= 0)  return 220;
+    if (t >= 30) return 10;
+    if (t <= 20) {
+        // 0°C ~ 20°C : 220 → 40 线性插值
+        return 220 + (40 - 220) * (t / 20);
+    } else {
+        // 20°C ~ 30°C : 40 → 10 线性插值
+        return 40  + (10 - 40)  * ((t - 20) / 10);
+    }
+}
+
+function getMoodLabel(temp, icon, desc) {
+    const t = Number(temp) || 18;
+    const i = String(icon || '').toLowerCase();
+    const d = String(desc || '').toLowerCase();
+    // 雷暴
+    if (i === 'thunder' || /thunder|雷|storm/.test(d)) {
+        return '雷暴';
+    }
+    // 雪舞：图标 snow 或气温低于 0°C
+    if (i === 'snow' || t <= 0) {
+        return '雪舞';
+    }
+    // 雨落：rain / drizzle 等
+    if (['rain', 'drizzle'].includes(i) || /雨|rain/.test(d)) {
+        return '雨落';
+    }
+    // 灼热：>= 30°C 或者 晴天且 >= 28°C
+    if (t >= 30 || (t >= 28 && (i === 'sunny'))) {
+        return '灼热';
+    }
+    // 晴朗：晴 / 多云但温度舒适 (15 ~ 27 度)
+    if ((i === 'sunny' || i === 'partly-cloudy') && t >= 12 && t < 28) {
+        return '晴朗';
+    }
+    // 其他（cloudy / fog / 多云阴沉）→ 平静
+    return '平静';
+}
+
+function updateAmbience(data) {
+    if (!data || !data.current) return;
+    const cur = data.current;
+
+    // 1) 温度 → 色相
+    const hue = tempToHue(cur.temperature);
+    // 2) 温度 + 天气代码 → 情绪
+    const mood = getMoodLabel(cur.temperature, cur.icon, cur.description);
+
+    // 3) 将色相写入 :root CSS 变量，CSS 层已有 2000ms transition 会自动平滑过渡
+    const root = document.documentElement;
+    root.style.setProperty('--ambience-hue', hue.toFixed(2));
+    // secondary = hue + 140 （互补色方向，保持对比）
+    root.style.setProperty('--ambience-hue-secondary', (hue + 140).toFixed(2));
+
+    // 4) 更新左上角情绪标签
+    const lbl = document.getElementById('mood-label');
+    const hueLbl = document.getElementById('mood-hue');
+    if (lbl) {
+        // 给 mood-label 也加一个颜色脉冲（从色相派生）
+        lbl.style.color = `hsl(${hue.toFixed(1)}, 95%, 70%)`;
+        lbl.style.textShadow =
+            `0 0 8px hsla(${hue.toFixed(1)}, 100%, 60%, 0.7),` +
+            ` 0 0 20px hsla(${hue.toFixed(1)}, 100%, 55%, 0.4)`;
+        lbl.textContent = mood;
+    }
+    if (hueLbl) {
+        hueLbl.textContent = 'HUE ' + String(Math.round(hue)).padStart(3, '0');
+        hueLbl.style.color = `hsl(${hue.toFixed(1)}, 35%, 60%)`;
+    }
+
+    // 5) 标题颜色：随色相变化（CYBER_WEATHER 主标题文字）
+    const logoText = document.querySelector('.logo-text');
+    const logoAccent = document.querySelector('.logo .accent');
+    const logoIcon = document.querySelector('.logo-icon');
+    if (logoText) {
+        const mainTxt = `hsl(${hue.toFixed(1)}, 95%, 70%)`;
+        const mainGlow = `0 0 10px hsla(${hue.toFixed(1)}, 100%, 60%, 0.75)`;
+        logoText.style.color = mainTxt;
+        logoText.style.textShadow = mainGlow;
+    }
+    if (logoAccent) {
+        // accent 用互补色方向
+        const h2 = (hue + 140) % 360;
+        const subTxt = `hsl(${h2.toFixed(1)}, 100%, 68%)`;
+        const subGlow = `0 0 10px hsla(${h2.toFixed(1)}, 100%, 60%, 0.75)`;
+        logoAccent.style.color = subTxt;
+        logoAccent.style.textShadow = subGlow;
+    }
+    if (logoIcon) {
+        const ic = `hsl(${hue.toFixed(1)}, 100%, 65%)`;
+        logoIcon.style.color = ic;
+        logoIcon.style.textShadow = `0 0 12px ${ic}`;
+    }
+
+    // 6) 记录日志（方便调试）
+    addLog('AMBIENCE',
+        `切换氛围：${mood} | HUE ${Math.round(hue)} | T ${cur.temperature}°C | ${cur.description}`);
+}
+
 function updateCoords(lat, lon) {
     const latEl = document.getElementById('map-lat');
     const lonEl = document.getElementById('map-lon');
@@ -451,6 +569,11 @@ function renderCityDetail(data) {
 
     renderDaily(data.daily);
     applyWeatherTheme(cur.icon);
+
+    // =====================================================
+    // 数据诗学：城市氛围切换（色相 + 情绪标签，2 秒平滑过渡）
+    // =====================================================
+    updateAmbience(data);
 
     const tempColor = getTemperatureColor(cur.temperature);
     const iconCore = document.getElementById('icon-core');

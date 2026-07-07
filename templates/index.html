@@ -12,10 +12,18 @@
     <div class="grid-overlay"></div>
 
     <header class="top-bar">
-        <div class="logo">
-            <span class="logo-icon">&#9728;</span>
-            <span class="logo-text">CYBER<span class="accent">_WEATHER</span></span>
-            <span class="logo-sub">// CHINA_MAP_v2.077</span>
+        <div class="top-left">
+            <div class="logo">
+                <span class="logo-icon">&#9728;</span>
+                <span class="logo-text">CYBER<span class="accent">_WEATHER</span></span>
+                <span class="logo-sub">// CHINA_MAP_v2.077</span>
+            </div>
+            <!-- 城市氛围情绪标签（根据温度+天气代码动态变化） -->
+            <div class="mood-wrapper" id="mood-wrapper">
+                <span class="mood-tag">MOOD //</span>
+                <span class="mood-label" id="mood-label">— 初始化中 —</span>
+                <span class="mood-hue" id="mood-hue">HUE 050</span>
+            </div>
         </div>
         <div class="status">
             <span class="status-item"><span class="led led-green"></span> ONLINE</span>
