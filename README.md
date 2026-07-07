@@ -98,12 +98,6 @@
 
 ---
 
-## 许可
-
-本项目采用 MIT License，欢迎 Fork 和二次创作。
-
----
-
 ## 致谢
 
 - Open-Meteo 提供免费天气 API
