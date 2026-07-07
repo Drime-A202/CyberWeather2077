@@ -4,13 +4,13 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <!-- ======================================================
-     强制反缓存：彻底解决浏览器返回旧版导致“看不到控件”的问题
+     强制反缓存：彻底解决浏览器返回旧版导致"看不到控件"的问题
      三保险：HTTP 响应头 + HTML meta + 版本号
      ====================================================== -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0, private" />
 <meta http-equiv="Pragma"        content="no-cache" />
 <meta http-equiv="Expires"       content="0" />
-<title>CYBER_WEATHER // DATA_POETICS // art_2077_v3.0</title>
+<title>CYBER_WEATHER // DATA_POETICS // art_2077_v4.0</title>
 <style>
   /* =============== 页面总样式（纯黑沉浸极简） =============== */
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -89,7 +89,7 @@
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
   }
-  /* 脉冲呼吸动画 —— 提示用户“这里有交互控件” */
+  /* 脉冲呼吸动画 —— 提示用户"这里有交互控件" */
   @keyframes cityPulse {
     0%, 100% {
       box-shadow:
@@ -187,6 +187,7 @@
     <div class="line1" id="hud-line1">
       <span id="city-name">INITIALIZING</span>
       <span class="tag" id="hue-tag">HUE · 200</span>
+      <span class="tag" id="visual-tag" style="margin-left:10px;border-color:rgba(255,255,255,0.5);letter-spacing:1px;">[--·--]</span>
     </div>
     <div class="line2" id="hud-line2">
       <span id="hud-temp">--</span> &nbsp;//&nbsp;
@@ -195,7 +196,7 @@
     </div>
   </div>
 
-  <!-- 城市切换下拉（左下角） -->
+  <!-- 城市切换下拉（底部居中） -->
   <div id="city-wrapper">
     <span class="label">CITY</span>
     <select id="city-select" autocomplete="off">
@@ -212,23 +213,25 @@
     </select>
   </div>
 
-  <div id="foot">DATA_POETICS_v3.077 · LAYERS(150+250+50) · CLICK_FOR_SHOCKWAVE · 50PX_ATTRACT/150PX_REPEL</div>
+  <div id="foot">DATA_POETICS_v4.0 · LAYERS(80+270+50=400) · WEATHER_CODE_MORPH · HUMIDITY·DENSITY · 2S_TRANSITION</div>
   <div id="load">CONNECTION_OPEN // FETCHING_DATA</div>
 
 <script>
 /* =========================================================================
-   数据诗学 Data Poetics v3 — 分层粒子系统 + 丰富交互
+   数据诗学 v4 — 夸张化天气粒子映射（重写版）
    -------------------------------------------------------------------------
-   01. 分层：BG(150) 慢速大气底色 + MAIN(250) 主体 + HL(50) 闪烁星点  → 共 450
-   02. 色相：四段 0°C→210  15°C→160  25°C→40  35°C→0
-       大小（新增）：低温(-10°C)收缩到 0.6x，高温(45°C)膨胀到 1.8x
-       拖尾长度（新增）：风慢=短(暗盖重) 风快=长(暗盖轻)
-   03. 形状：sunny 圆发光  rain 椭圆拉长下落  snow 六角形三线交叉  cloudy 团状
-   04. 连线：主体粒子距离<80px 时画线（星云网络感）
-   05. 背景径向渐变：中心略亮边缘黑（景深感）
-   06. 鼠标：50px 内环吸引 + 150px 外环排斥（getBoundingClientRect 修正坐标 + NaN/越界保护）
-       点击：聚拢→炸开 冲击波（2 秒恢复）
-   07. 闪烁：所有粒子 size/alpha 按 twinkleSpeed 正弦波动（HL 层更明显）
+   1. 温度 5 段色相（-10→220深蓝, 0→240蓝紫, 15→160青绿, 25→40橙黄, 35→0炽红）
+      背景径向渐变：中心色=温度色相，低温深蓝黑 / 高温深红黑
+   2. 风速：速度倍率 = 0.5 × (1 + 风速/5)；拖尾帧长 = 5(w0)~30(w30)
+   3. weather_code 形态切换（if/else 清晰分支）：
+      晴(0,1)   → 圆形 shadowBlur=30 强发光 漂浮
+      阴(2,3)   → 多圆叠加团状 灰白蓝灰 慢速随机
+      雨(61-65,80-82) → 细长椭圆 1:4 斜下 45° 雨丝拖尾 +50% 粒子
+      雪(71-77,85-86) → 六角三线交叉 白色半透明 螺旋飘落 闪烁 -30%
+      雷暴(95-99)    → 不规则多边形 白紫交替闪烁 方向随机突变
+   4. 湿度：>80% 朦胧(alpha 0.3-0.5, 密度+20%)；<40% 清透(0.7-1.0, 密度-25%)
+   5. 城市切换：全量状态 2 秒缓动过渡；HUD 视觉标签 [温度天气·风速]
+   6. 性能：粒子池 400（80 bg + 270 main + 50 hl）
    ========================================================================= */
 (function () {
   'use strict';
@@ -242,13 +245,13 @@
   const hudDesc  = document.getElementById('hud-desc');
   const hudWind  = document.getElementById('hud-wind');
   const hueTag   = document.getElementById('hue-tag');
+  const visTag   = document.getElementById('visual-tag');
 
   /* ==========================================================
      0. Canvas 尺寸自适应 + DPR
      ========================================================== */
   let W = 0, H = 0, DPR = Math.min(2, window.devicePixelRatio || 1);
   function resize() {
-    // clientWidth/clientHeight 是只读 getter，必须读取而非赋值
     W = canvas.clientWidth  || window.innerWidth;
     H = canvas.clientHeight || window.innerHeight;
     canvas.width  = Math.floor(W * DPR);
@@ -259,166 +262,230 @@
   resize();
 
   /* ==========================================================
-     1. 分层粒子系统（150 + 250 + 50 = 450 ≤ 500）
-     layer: 'bg' / 'main' / 'hl'
+     1. 粒子池（总 400 = 80 + 270 + 50）
      ========================================================== */
-  const BG_COUNT   = 150;
-  const MAIN_COUNT = 250;
+  const BG_COUNT   = 80;
+  const MAIN_COUNT = 270;
   const HL_COUNT   = 50;
-  const PARTICLE_COUNT = BG_COUNT + MAIN_COUNT + HL_COUNT;
+  const PARTICLE_COUNT = BG_COUNT + MAIN_COUNT + HL_COUNT; // 400
+  const BASE_RENDER = 267; // 基准渲染数（晴/阴/雷暴显示此数）
   const particles = [];
-  // 把 main 层单独留索引，连线时只遍历 main 层（O(250²)=62500 对比计算，可接受）
   const mainIndices = [];
 
   function rand(a, b) { return a + Math.random() * (b - a); }
+  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
 
-  function spawn(layer, idxWithinLayer) {
-    let baseSize, size, alpha, speedAmp, twSpdA, twPhiAmp;
+  function spawn(layer, globalIdx) {
+    let baseSize, baseAlpha, speedAmp, twSpdA, twPhiAmp;
     if (layer === 'bg') {
-      baseSize  = rand(4, 8);
-      alpha     = rand(0.10, 0.30);
-      speedAmp  = 0.18;  // 极慢
+      baseSize  = rand(4, 9);
+      baseAlpha = rand(0.10, 0.28);
+      speedAmp  = 0.18;
       twSpdA    = rand(0.0005, 0.0018);
       twPhiAmp  = 0.25;
     } else if (layer === 'hl') {
       baseSize  = rand(1, 3);
-      alpha     = rand(0.80, 1.00);
-      speedAmp  = 1.60;  // 稍快 + 闪烁
+      baseAlpha = rand(0.82, 1.00);
+      speedAmp  = 1.60;
       twSpdA    = rand(0.004, 0.014);
-      twPhiAmp  = 1.20;
-    } else {  // main
-      baseSize  = rand(2, 5);
-      alpha     = rand(0.40, 0.70);
+      twPhiAmp  = 1.25;
+    } else { // main
+      baseSize  = rand(2, 5.5);
+      baseAlpha = rand(0.40, 0.72);
       speedAmp  = 1.00;
       twSpdA    = rand(0.001, 0.0045);
-      twPhiAmp  = 0.60;
+      twPhiAmp  = 0.65;
     }
     const sx = rand(-0.6, 0.6) * speedAmp;
     const sy = rand(-0.6, 0.6) * speedAmp;
     return {
-      layer:     layer,
-      x:         Math.random() * W,
-      y:         Math.random() * H,
-      baseSize:  baseSize,
-      size:      baseSize,
-      speedX:    sx,
-      speedY:    sy,
-      baseSpeedX: sx,
-      baseSpeedY: sy,
-      speedAmp:  speedAmp,
-      hue:       rand(160, 230),
-      alpha:     alpha,
-      baseAlpha: alpha,
-      rot:       rand(0, Math.PI * 2),
-      rotSpeed:  rand(-0.03, 0.03),
-      // 自身闪烁
-      twSpeed:   twSpdA,
-      twPhase:   rand(0, Math.PI * 2),
-      twAmp:     twPhiAmp,
-      // 拖尾历史
-      trail:     new Array(3).fill(null).map(() => ({x: 0, y: 0}))
+      layer:       layer,
+      x:           Math.random() * W,
+      y:           Math.random() * H,
+      baseSize:    baseSize,
+      baseAlpha:   baseAlpha,
+      speedX:      sx,
+      speedY:      sy,
+      baseSpeedX:  sx,
+      baseSpeedY:  sy,
+      speedAmp:    speedAmp,
+      hue:         rand(160, 230),
+      rot:         rand(0, Math.PI * 2),
+      rotSpeed:    rand(-0.03, 0.03),
+      twSpeed:     twSpdA,
+      twPhase:     rand(0, Math.PI * 2),
+      twAmp:       twPhiAmp,
+      drawKey:     (globalIdx + 1) / PARTICLE_COUNT, // 稳定分布 0.0025..1
+      stormJitterT: rand(0, 40),
+      stormVX:     0,
+      stormVY:     0,
+      trail:       new Array(8).fill(null).map(() => ({ x: 0, y: 0, live: false }))
     };
   }
 
   let k = 0;
-  for (let i = 0; i < BG_COUNT;   i++, k++) particles.push(spawn('bg',   i));
-  for (let i = 0; i < MAIN_COUNT; i++, k++) { particles.push(spawn('main', i)); mainIndices.push(k); }
-  for (let i = 0; i < HL_COUNT;   i++, k++) particles.push(spawn('hl',   i));
+  for (let i = 0; i < BG_COUNT;   i++, k++) particles.push(spawn('bg',   k));
+  for (let i = 0; i < MAIN_COUNT; i++, k++) { particles.push(spawn('main', k)); mainIndices.push(k); }
+  for (let i = 0; i < HL_COUNT;   i++, k++) particles.push(spawn('hl',   k));
 
   /* ==========================================================
-     2. 目标状态（城市切换 → 当前 → 目标 lerp 逼近）
+     2. 全局状态（城市切换：current → target 2s 缓动）
      ========================================================== */
   const state = {
-    // 色相
-    currentHue: 200,    targetHue:  200,
+    // 色相（温度 5 段）
+    currentHue: 200, targetHue: 200,
     // 速度倍率（风速驱动）
-    currentSpeedMul: 1.0,  targetSpeedMul: 1.0,
-    // 尺寸倍率（温度驱动：高温膨胀，低温收缩）
-    currentSizeMul:  1.0,  targetSizeMul:  1.0,
-    // 拖尾强度（拖尾=每帧盖多少半透明黑；值越小拖尾越长。风速→映射成该值）
-    currentTrailAlpha: 0.18,  targetTrailAlpha: 0.18,
-    // 天气驱动形态
-    currentShape: 'sunny',  targetShape: 'sunny',
-    shapeT: 1.0, shapeDuration: 1200, shapeLast: 0,
-    // 鼠标（cx,cy 是相对 canvas 坐标；x,y 是原始 clientX/Y）
+    currentSpeedMul: 0.5, targetSpeedMul: 0.5,
+    // 拖尾帧长 & 对应盖色 alpha
+    currentTrailFrames: 10, targetTrailFrames: 10,
+    currentTrailAlpha:  0.35, targetTrailAlpha: 0.35,
+    // 天气类型（weather_code 驱动）
+    currentWeather: 'clear', targetWeather: 'clear',
+    weatherT: 1.0, weatherDuration: 2000, weatherLast: 0,
+    // 湿度 → 透明度中心值 & 密度倍率
+    currentAlphaMul:   1.0, targetAlphaMul:   1.0,
+    currentDensityMul: 1.0, targetDensityMul: 1.0,
+    // 原始值（给 HUD 标签用）
+    currentTemp: 20, targetTemp: 20,
+    currentWind: 0,  targetWind: 0,
+    // 鼠标
     mouse: { x: -9999, y: -9999, cx: -9999, cy: -9999, active: false },
-    // 点击爆炸冲击波
-    shock: { active:false, x:0, y:0, startT:0, duration: 1700 },
-    // 当前城市
+    // 冲击波
+    shock: { active: false, x: 0, y: 0, startT: 0, duration: 1700 },
+    // 城市
     cityKey: 'beijing', cityLabel: 'BEIJING',
   };
 
   /* ==========================================================
-     3. 色相映射 4 段线性
+     3. 温度 → 色相（5 段，覆盖整个色环 0→240）
+        -10→220, 0→240, 15→160, 25→40, 35→0
      ========================================================== */
   function tempToHue(temp) {
-    const t = Number(temp); if (isNaN(t)) return 200;
-    if (t <= 0)  return 210;
-    if (t <= 15) return 210 + (160 - 210) * (t / 15);
-    if (t <= 25) return 160 + (40 - 160)  * ((t - 15) / 10);
-    if (t <= 35) return 40  + (0  - 40)   * ((t - 25) / 10);
+    const t = Number(temp);
+    if (!isFinite(t)) return 200;
+    if (t <= -10) return 220;
+    if (t <=   0) return lerp(220, 240, (t + 10) / 10);
+    if (t <=  15) return lerp(240, 160, (t -   0) / 15);
+    if (t <=  25) return lerp(160,  40, (t -  15) / 10);
+    if (t <=  35) return lerp( 40,   0, (t -  25) / 10);
     return 0;
   }
 
   /* ==========================================================
-     3b. 温度→尺寸倍率（-10→0.6, 0→0.85, 20→1.0, 35→1.4, 45→1.8）
+     4. 风速 → 速度倍率 & 拖尾帧长
+        speedMul = 0.5 * (1 + w/5)   (w0→0.5  w30→3.5)
+        frames   = 5 + 25 * min(1, w/30)   → 对应 α = 1-0.01^(1/N)
      ========================================================== */
-  function tempToSizeMul(temp) {
-    const t = Number(temp); if (isNaN(t)) return 1.0;
-    if (t <= -10) return 0.60;
-    if (t <=   0) return 0.60 + (0.85 - 0.60) * ((t + 10) / 10);
-    if (t <=  20) return 0.85 + (1.00 - 0.85) * ((t -  0) / 20);
-    if (t <=  35) return 1.00 + (1.40 - 1.00) * ((t - 20) / 15);
-    if (t <=  45) return 1.40 + (1.80 - 1.40) * ((t - 35) / 10);
-    return 1.80;
-  }
-
-  /* ==========================================================
-     3c. 风速→拖尾 Alpha（风小=拖尾短  alpha 大；风大=拖尾长  alpha 小）
-         风速 0 m/s → 0.24（短），  60 m/s → 0.06（长）
-     ========================================================== */
-  function windToTrailAlpha(w) {
+  function windToSpeedMul(w) {
     w = Math.max(0, Math.min(60, Number(w) || 0));
-    return 0.24 - 0.18 * (w / 60);  // 0.24 .. 0.06
+    return 0.5 * (1 + w / 5);
+  }
+  function windToTrailFrames(w) {
+    w = Math.max(0, Math.min(60, Number(w) || 0));
+    const k = Math.min(1, w / 30);
+    return Math.round(lerp(5, 30, k));
+  }
+  function framesToTrailAlpha(n) {
+    n = Math.max(2, Math.min(60, Number(n) || 10));
+    return 1 - Math.pow(0.01, 1 / n);
   }
 
   /* ==========================================================
-     4. icon/desc → shape
+     5. weather_code → 天气类型（if/else 5 分支）
      ========================================================== */
-  function iconToShape(icon, desc, temp) {
-    const i = String(icon || '').toLowerCase();
+  function weatherCodeToType(code, desc, temp) {
+    const c = Number(code);
+    if (isFinite(c)) {
+      if (c === 0 || c === 1) return 'clear';
+      if (c === 2 || c === 3) return 'cloudy';
+      if (c === 61 || c === 63 || c === 65 || c === 80 || c === 81 || c === 82) return 'rain';
+      if (c === 71 || c === 73 || c === 75 || c === 77 || c === 85 || c === 86) return 'snow';
+      if (c === 95 || c === 96 || c === 99) return 'storm';
+    }
+    // 回退：description/icon/温度猜测
     const d = String(desc || '').toLowerCase();
-    if (i === 'snow' || /雪|snow/.test(d) || (!isNaN(temp) && Number(temp) <= -2)) return 'snow';
-    if (['rain','drizzle','thunder'].includes(i) || /雨|rain|thunder/.test(d)) return 'rain';
-    if (['cloudy','fog'].includes(i) || /多云|阴|雾|cloud|fog/.test(d)) return 'cloudy';
-    return 'sunny';
+    if (/雪|snow/.test(d) || (isFinite(Number(temp)) && Number(temp) <= -2)) return 'snow';
+    if (/雷|thunder|storm/.test(d)) return 'storm';
+    if (/雨|rain/.test(d)) return 'rain';
+    if (/多云|阴|雾|cloud|fog|overcast/.test(d)) return 'cloudy';
+    return 'clear';
   }
 
   /* ==========================================================
-     5. 鼠标事件（核心修复：getBoundingClientRect + NaN/越界保护）
+     6. 湿度 → 透明度中心值 & 密度倍率
+        hum >= 80 → alpha 中心 0.40 (实际 0.3-0.5)  density 1.20
+        hum <= 40 → alpha 中心 0.85 (实际 0.7-1.0)  density 0.75
+     ========================================================== */
+  function humidityToAlphaBase(h) {
+    h = Number(h);
+    if (!isFinite(h)) return 0.70;
+    if (h >= 80) return 0.40;
+    if (h <= 40) return 0.85;
+    return lerp(0.85, 0.40, (h - 40) / 40);
+  }
+  function humidityToDensityMul(h) {
+    h = Number(h);
+    if (!isFinite(h)) return 1.0;
+    if (h >= 80) return 1.20;
+    if (h <= 40) return 0.75;
+    return lerp(0.75, 1.20, (h - 40) / 40);
+  }
+
+  /* 天气 → 渲染密度倍率（×BASE_RENDER） */
+  const WEATHER_DENSITY = { clear: 1.0, cloudy: 1.0, rain: 1.5, snow: 0.7, storm: 1.0 };
+
+  /* ==========================================================
+     7. HUD 视觉状态标签 [温度天气·风速]
+     示例：[烈日·狂风] [寒雪·微息] [惊雷·狂飙] [云黯·微风]
+     ========================================================== */
+  function tempWeatherWord(wType, temp) {
+    const t = Number(temp);
+    if (wType === 'snow')   return (isFinite(t) && t <= -5) ? '暴雪' : '寒雪';
+    if (wType === 'rain')   return (isFinite(t) && t >= 20) ? '骤雨' : '冷雨';
+    if (wType === 'storm')  return '惊雷';
+    if (wType === 'cloudy') return '云黯';
+    // clear
+    if (isFinite(t)) {
+      if (t >= 30) return '烈日';
+      if (t >= 18) return '晴和';
+      if (t >=  0) return '晴冷';
+      return '凛晴';
+    }
+    return '晴和';
+  }
+  function windWord(w) {
+    w = Number(w) || 0;
+    if (w >= 20) return '狂飙';
+    if (w >= 10) return '狂风';
+    if (w >=  5) return '劲风';
+    if (w >=  2) return '微风';
+    return '微息';
+  }
+  function updateVisualTag() {
+    const w = tempWeatherWord(state.currentWeather, state.currentTemp);
+    const s = windWord(state.currentWind);
+    visTag.textContent = `[${w}·${s}]`;
+  }
+
+  /* ==========================================================
+     8. 鼠标事件（getBoundingClientRect + NaN/越界保护）
      ========================================================== */
   function setMouseFromEvent(e) {
     const rect = canvas.getBoundingClientRect();
-    // e.clientX/Y 是相对视口；减去 rect.left/top 得到相对 canvas 坐标
     let cx = (e.clientX != null ? e.clientX : 0) - rect.left;
     let cy = (e.clientY != null ? e.clientY : 0) - rect.top;
-    // NaN / Infinite 保护
     if (!isFinite(cx) || !isFinite(cy)) { cx = -9999; cy = -9999; }
-    // 越出画布则忽略（不参与排斥/吸引）
     if (cx < 0 || cx > W || cy < 0 || cy > H) { cx = -9999; cy = -9999; }
     state.mouse.x = e.clientX; state.mouse.y = e.clientY;
     state.mouse.cx = cx;      state.mouse.cy = cy;
     state.mouse.active = (cx !== -9999);
   }
-
   canvas.addEventListener('mousemove', setMouseFromEvent);
   canvas.addEventListener('mouseleave', function () {
-    state.mouse.active = false;
-    state.mouse.cx = -9999; state.mouse.cy = -9999;
+    state.mouse.active = false; state.mouse.cx = -9999; state.mouse.cy = -9999;
   });
-  canvas.addEventListener('mouseout',   function () { state.mouse.active = false; });
-
-  // 触屏支持
+  canvas.addEventListener('mouseout', function () { state.mouse.active = false; });
   window.addEventListener('touchstart', function (e) {
     if (e.touches[0]) setMouseFromEvent({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
   }, { passive: true });
@@ -427,7 +494,7 @@
   }, { passive: true });
   window.addEventListener('touchend', function () { state.mouse.active = false; });
 
-  // 点击爆炸（聚拢→炸开）
+  // 点击 → 聚拢→炸开冲击波
   canvas.addEventListener('mousedown', function (e) {
     const rect = canvas.getBoundingClientRect();
     let cx = e.clientX - rect.left;
@@ -441,46 +508,69 @@
   });
 
   /* ==========================================================
-     6. 应用天气数据 → 更新 target 状态
+     9. 应用天气数据 → 更新 target 状态
      ========================================================== */
+  const LABEL_MAP = {
+    beijing:'BEIJING', shanghai:'SHANGHAI', guangzhou:'GUANGZHOU',
+    shenzhen:'SHENZHEN', chengdu:'CHENGDU', hangzhou:'HANGZHOU',
+    wuhan:'WUHAN', chongqing:'CHONGQING', xian:"XI'AN", hongkong:'HONG KONG'
+  };
+
   function applyWeather(data) {
     if (!data || !data.current) return;
     const cur = data.current;
 
-    state.targetHue      = tempToHue(cur.temperature);
-    state.targetSizeMul  = tempToSizeMul(cur.temperature);
-
-    const w = Math.max(0, Number(cur.wind_speed) || 0);
-    state.targetSpeedMul   = 0.5 + Math.min(2.5, w / 20);
-    state.targetTrailAlpha = windToTrailAlpha(w);
-
-    const ns = iconToShape(cur.icon, cur.description, cur.temperature);
-    if (ns !== state.currentShape) {
-      state.targetShape = ns;
-      state.shapeT = 0;
-      state.shapeLast = performance.now();
+    // 温度
+    const t = Number(cur.temperature);
+    if (isFinite(t)) {
+      state.targetTemp = t;
+      state.targetHue  = tempToHue(t);
     }
 
-    const labelMap = {
-      beijing:'BEIJING', shanghai:'SHANGHAI', guangzhou:'GUANGZHOU',
-      shenzhen:'SHENZHEN', chengdu:'CHENGDU', hangzhou:'HANGZHOU',
-      wuhan:'WUHAN', chongqing:'CHONGQING', xian:"XI'AN", hongkong:'HONG KONG'
-    };
-    state.cityLabel = labelMap[state.cityKey] || (state.cityKey||'').toUpperCase();
-    hudName.textContent = state.cityLabel;
-    hudTemp.textContent = `${Math.round(cur.temperature)}°C`;
-    hudDesc.textContent = String(cur.description || cur.icon || '').toUpperCase();
-    hudWind.textContent = 'WIND ' + (cur.wind_speed != null ? Number(cur.wind_speed).toFixed(1) + ' m/s' : '--');
+    // 风速
+    const w = Math.max(0, Number(cur.wind_speed) || 0);
+    state.targetWind        = w;
+    state.targetSpeedMul    = windToSpeedMul(w);
+    state.targetTrailFrames = windToTrailFrames(w);
+    state.targetTrailAlpha  = framesToTrailAlpha(state.targetTrailFrames);
 
-    hueTag.textContent = 'HUE · ' + String(Math.round(state.targetHue)).padStart(3,'0');
+    // 天气
+    const nw = weatherCodeToType(cur.weather_code, cur.description || cur.icon, cur.temperature);
+    if (state.weatherT >= 1 && nw !== state.currentWeather) {
+      state.targetWeather = nw;
+      state.weatherT = 0;
+      state.weatherLast = performance.now();
+    } else {
+      state.targetWeather = nw;
+    }
+
+    // 湿度
+    const hum = Number(cur.humidity);
+    if (isFinite(hum)) {
+      state.targetAlphaMul   = humidityToAlphaBase(hum);
+      state.targetDensityMul = humidityToDensityMul(hum);
+    } else {
+      state.targetAlphaMul   = 0.70;
+      state.targetDensityMul = 1.0;
+    }
+
+    // HUD 文本
+    state.cityLabel = LABEL_MAP[state.cityKey] || (state.cityKey || '').toUpperCase();
+    hudName.textContent = state.cityLabel;
+    hudTemp.textContent = `${Math.round(state.targetTemp)}°C`;
+    hudDesc.textContent = String(cur.description || cur.icon || '').toUpperCase();
+    hudWind.textContent = 'WIND ' + (Number(cur.wind_speed) != null ? Number(cur.wind_speed).toFixed(1) + ' m/s' : '--');
+
+    // Hue 角标 + select 霓虹色
+    hueTag.textContent = 'HUE · ' + String(Math.round(state.targetHue)).padStart(3, '0');
     document.documentElement.style.setProperty('--ambience-hue', String(state.targetHue));
-    sel.style.setProperty('border-color', `hsla(${state.targetHue.toFixed(1)}, 100%, 65%, 0.7)`);
+    sel.style.setProperty('border-color', `hsla(${state.targetHue.toFixed(1)}, 100%, 65%, 0.72)`);
     sel.style.setProperty('box-shadow',
-      `0 0 18px hsla(${state.targetHue.toFixed(1)}, 100%, 65%, 0.28), 0 0 50px hsla(${(state.targetHue+150)%360}, 100%, 60%, 0.12)`);
+      `0 0 18px hsla(${state.targetHue.toFixed(1)}, 100%, 65%, 0.30), 0 0 50px hsla(${(state.targetHue + 150) % 360}, 100%, 60%, 0.14)`);
   }
 
   /* ==========================================================
-     7. fetch 切换城市
+     10. 切换城市
      ========================================================== */
   async function switchCity(key) {
     state.cityKey = key;
@@ -491,139 +581,211 @@
       applyWeather(data);
     } catch (err) {
       console.warn('天气获取失败，回退默认', err);
-      applyWeather({ current: { temperature: 23, icon: 'partly-cloudy', description: 'CLEAR', wind_speed: 4 } });
+      applyWeather({
+        current: {
+          temperature: 23, weather_code: 1,
+          icon: 'partly-cloudy', description: 'CLEAR',
+          wind_speed: 4, humidity: 55
+        }
+      });
     }
   }
   sel.addEventListener('change', function () { switchCity(sel.value); });
 
   /* ==========================================================
-     8. 绘制单个粒子形状（4 种天气形态 + 两层之间 tween 过渡）
+     11. 粒子形状绘制（5 大 if/else 分支，视觉语言完全不同）
      ========================================================== */
-  function drawOneShape(p, shape, hue, size, alpha) {
+  function drawOneShape(p, wType, hue, size, alpha) {
     const x = p.x, y = p.y;
-    ctx.shadowColor = `hsla(${hue}, 100%, 65%, 0.85)`;
-    ctx.shadowBlur  = p.layer === 'hl' ? 18 : (p.layer === 'bg' ? 22 : 12);
-    ctx.fillStyle   = `hsla(${hue}, 100%, 65%, ${alpha})`;
-    ctx.strokeStyle = `hsla(${hue}, 100%, 75%, ${alpha})`;
 
-    switch (shape) {
-      case 'sunny':
-        ctx.beginPath();
-        ctx.arc(x, y, Math.max(0.5, size), 0, Math.PI * 2);
-        ctx.fill();
-        break;
+    // ——— 1) 晴 clear：圆形 + shadowBlur=30 强发光 + 鲜艳色 ———
+    if (wType === 'clear') {
+      ctx.shadowColor = `hsla(${hue}, 100%, 65%, 0.95)`;
+      ctx.shadowBlur  = 30;
+      ctx.fillStyle   = `hsla(${hue}, 100%, 68%, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(x, y, Math.max(0.6, size), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      return;
+    }
 
-      case 'rain': {
-        // 细长椭圆 + 下落方向（拉长 Y，压扁 X）
-        ctx.save();
-        ctx.translate(x, y);
-        const spd = Math.max(1.2, state.currentSpeedMul);
-        // 方向：速度合成方向，至少向下
-        const angle = Math.atan2(Math.max(1, p.speedY + 1.5 * spd), p.speedX || 0.01);
-        ctx.rotate(angle);
-        const rx = Math.max(0.4, size * 0.40);
-        const ry = Math.max(1.5, size * (1.6 + 0.8 * spd));
+    // ——— 2) 阴 cloudy：多个半透明小圆叠加 → 模糊团状，灰白/蓝灰（低饱和）———
+    if (wType === 'cloudy') {
+      const grayHue = lerp(hue, 215, 0.6); // 朝灰蓝偏移，降低个性
+      // 主团
+      const r1 = Math.max(1.2, size * 1.9);
+      const g = ctx.createRadialGradient(x, y, 0.5, x, y, r1);
+      g.addColorStop(0,    `hsla(${grayHue}, 25%, 85%, ${clamp(alpha + 0.15, 0, 1)})`);
+      g.addColorStop(0.45, `hsla(${grayHue}, 20%, 68%, ${alpha * 0.5})`);
+      g.addColorStop(1,    `hsla(${grayHue}, 15%, 55%, 0)`);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r1, 0, Math.PI * 2);
+      ctx.fill();
+      // 副团（偏移叠加 → 成团块感）
+      const ox = size * 0.6, oy = -size * 0.5;
+      const r2 = Math.max(0.8, size * 1.3);
+      const g2 = ctx.createRadialGradient(x + ox, y + oy, 0.4, x + ox, y + oy, r2);
+      g2.addColorStop(0, `hsla(${grayHue}, 18%, 80%, ${alpha * 0.7})`);
+      g2.addColorStop(1, `hsla(${grayHue}, 12%, 60%, 0)`);
+      ctx.fillStyle = g2;
+      ctx.beginPath();
+      ctx.arc(x + ox, y + oy, r2, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+
+    // ——— 3) 雨 rain：细长椭圆(1:4) 斜向下 45° + 雨丝拖尾线 + 冷蓝色 ———
+    if (wType === 'rain') {
+      ctx.save();
+      ctx.translate(x, y);
+      const spd = Math.max(1.0, state.currentSpeedMul);
+      // 固定斜下 45°（叠加一点速度扰动）
+      const baseAngle = Math.PI / 4;
+      const jitter = Math.atan2(p.speedY || 1, (p.speedX || 0.5)) * 0.15;
+      ctx.rotate(baseAngle + jitter);
+      const rx = Math.max(0.4, size * 0.35);                    // 宽
+      const ry = Math.max(1.8, size * 1.40 + spd * 0.8);       // 高 (约 1:4)
+      const rainHue = 210; // 冷蓝
+      ctx.shadowColor = `hsla(${rainHue}, 90%, 60%, 0.7)`;
+      ctx.shadowBlur  = 10;
+      ctx.fillStyle   = `hsla(${rainHue}, 95%, 75%, ${alpha})`;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // 雨丝拖尾线（从椭圆顶端再延伸一段细线）
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = `hsla(${rainHue}, 95%, 80%, ${alpha * 0.6})`;
+      ctx.lineWidth = Math.max(0.3, rx * 0.6);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, -ry);
+      ctx.lineTo(0, -ry - Math.min(ry * 1.5, 14));
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    // ——— 4) 雪 snow：六角形（三条交叉短线）白色半透明 + 螺旋飘落 闪烁 ———
+    if (wType === 'snow') {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(p.rot);
+      const r = Math.max(1.2, size * 1.8);
+      ctx.lineWidth = Math.max(0.6, size * 0.3);
+      ctx.lineCap = 'round';
+      // 白色 + 淡淡蓝色阴影
+      ctx.strokeStyle = `hsla(210, 40%, 96%, ${alpha})`;
+      ctx.shadowColor = `hsla(210, 80%, 85%, ${alpha * 0.6})`;
+      ctx.shadowBlur  = 12;
+      for (let i = 0; i < 3; i++) {
+        ctx.rotate(Math.PI / 3); // 60°
         ctx.beginPath();
-        ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-        break;
+        ctx.moveTo(0, -r);
+        ctx.lineTo(0,  r);
+        // 分叉
+        ctx.moveTo( 0, -r * 0.5);
+        ctx.lineTo( r * 0.35, -r * 0.78);
+        ctx.moveTo( 0,  r * 0.5);
+        ctx.lineTo(-r * 0.35,  r * 0.78);
+        ctx.stroke();
       }
+      ctx.shadowBlur = 0;
+      ctx.restore();
+      return;
+    }
 
-      case 'snow': {
-        // 六角形 = 三条交叉线（60°）
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(p.rot);
-        const r = size * 1.8;
-        ctx.lineWidth = Math.max(0.6, size * 0.28);
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = `hsla(${hue}, 100%, 88%, ${alpha})`;
-        ctx.shadowBlur = 10;
-        for (let k = 0; k < 3; k++) {
-          ctx.rotate(Math.PI / 3);  // 60°
-          ctx.beginPath();
-          ctx.moveTo(0, -r);
-          ctx.lineTo(0,  r);
-          // 小分叉
-          ctx.moveTo( 0, -r * 0.55);
-          ctx.lineTo( r * 0.35, -r * 0.8);
-          ctx.moveTo( 0,  r * 0.55);
-          ctx.lineTo(-r * 0.35,  r * 0.8);
-          ctx.stroke();
-        }
-        ctx.restore();
-        break;
+    // ——— 5) 雷暴 storm：不规则多边形 + 白/紫交替闪烁 + 躁动感 + 闪电短线 ———
+    if (wType === 'storm') {
+      const t = performance.now() * 0.02 + p.twPhase * 30;
+      const flash = 0.5 + 0.5 * Math.sin(t);  // 0..1 交替
+      const fHue   = lerp(0,   280, flash);
+      const fSat   = lerp(0,   100, flash);
+      const fLight = lerp(98,   70, flash);
+      // 5~7 边不规则多边形（每粒子稳定边数）
+      const sides = 5 + Math.floor((p.twPhase * 10) % 3);
+      const r0 = Math.max(0.8, size * 1.2);
+      ctx.shadowColor = `hsla(${fHue}, ${fSat}%, 80%, ${alpha})`;
+      ctx.shadowBlur  = 22;
+      ctx.fillStyle   = `hsla(${fHue}, ${fSat}%, ${fLight}%, ${alpha})`;
+      ctx.beginPath();
+      for (let i = 0; i < sides; i++) {
+        const a = (i / sides) * Math.PI * 2 + p.rot;
+        const rr = r0 * (0.6 + 0.4 * Math.sin(i * 3.7 + p.twPhase * 6.28));
+        const px2 = x + Math.cos(a) * rr;
+        const py2 = y + Math.sin(a) * rr;
+        if (i === 0) ctx.moveTo(px2, py2);
+        else ctx.lineTo(px2, py2);
       }
-
-      case 'cloudy': {
-        // 模糊团状 = 径向渐变
-        const r = Math.max(1, size * 1.9);
-        const g = ctx.createRadialGradient(x, y, 0.5, x, y, r);
-        g.addColorStop(0,   `hsla(${hue}, 70%, 75%, ${Math.min(1, alpha + 0.2)})`);
-        g.addColorStop(0.5, `hsla(${hue}, 50%, 60%, ${alpha * 0.35})`);
-        g.addColorStop(1,   `hsla(${hue}, 40%, 50%, 0)`);
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-      }
-
-      default:
-        ctx.beginPath();
-        ctx.arc(x, y, Math.max(0.5, size), 0, Math.PI * 2);
-        ctx.fill();
+      ctx.closePath();
+      ctx.fill();
+      // 附加闪电锯齿短线
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = `hsla(${fHue}, ${fSat}%, ${lerp(fLight, 100, 0.5)}%, ${alpha * 0.85})`;
+      ctx.lineWidth = Math.max(0.3, size * 0.22);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x - r0 * 0.4, y - r0 * 0.2);
+      ctx.lineTo(x + r0 * 0.1, y + r0 * 0.1);
+      ctx.lineTo(x - r0 * 0.1, y + r0 * 0.2);
+      ctx.lineTo(x + r0 * 0.4, y + r0 * 0.5);
+      ctx.stroke();
+      return;
     }
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 1;
-  }
-
-  function drawParticle(p) {
-    const shapeA = state.currentShape;
-    const shapeB = state.targetShape;
-    const t = Math.min(1, state.shapeT);
-    const hue = p.hue;
-
-    // 闪烁正弦
-    const tw = 0.5 + 0.5 * Math.sin(performance.now() * p.twSpeed + p.twPhase);
-    const sizeAmplify = 0.55 + 0.65 * tw;            // 0.55~1.20
-    const alphaAmplify = 0.55 + 0.45 * tw;
-
-    // 基础尺寸：p.baseSize × 温度尺寸倍率 × 天气形态倍率 × 闪烁
-    let shapeMulA = 1.0, shapeMulB = 1.0;
-    switch (shapeA) {
-      case 'cloudy': shapeMulA = 1.00; break;
-      case 'snow':   shapeMulA = 0.85; break;
-      case 'rain':   shapeMulA = 0.55; break;
-      default:       shapeMulA = 0.65;
-    }
-    switch (shapeB) {
-      case 'cloudy': shapeMulB = 1.00; break;
-      case 'snow':   shapeMulB = 0.85; break;
-      case 'rain':   shapeMulB = 0.55; break;
-      default:       shapeMulB = 0.65;
-    }
-    const sMul = state.currentSizeMul * (shapeMulA * (1 - t) + shapeMulB * t);
-    const size = Math.max(0.5, p.baseSize * sizeAmplify * sMul);
-    const alpha = Math.max(0.01, p.baseAlpha * alphaAmplify);
-
-    ctx.globalAlpha = alpha * (1 - t) * 0.95;
-    drawOneShape(p, shapeA, hue, size, alpha);
-    if (t < 1 && shapeA !== shapeB) {
-      ctx.globalAlpha = alpha * t * 0.95;
-      drawOneShape(p, shapeB, hue, size, alpha);
-    }
-    ctx.globalAlpha = 1;
   }
 
   /* ==========================================================
-     9. 粒子连线：main 层粒子两两距离 < CONNECTION_DIST 时绘制半透明线
+     12. 绘制粒子（含天气过渡 tween）
+     ========================================================== */
+  function drawParticle(p, now, alphaBase, alphaSpan) {
+    const wA = state.currentWeather;
+    const wB = state.targetWeather;
+    const t  = Math.min(1, state.weatherT);
+
+    // 闪烁（正弦）
+    const tw = 0.5 + 0.5 * Math.sin(now * p.twSpeed + p.twPhase);
+    const sizeAmplify  = 0.55 + 0.65 * tw;  // 0.55~1.20
+    const twinkleAlpha = 0.55 + 0.45 * tw;
+
+    // 形状尺寸差异
+    const SHAPE_SIZE = { clear: 0.9, cloudy: 1.05, rain: 0.6, snow: 0.95, storm: 0.85 };
+    const sA = SHAPE_SIZE[wA] != null ? SHAPE_SIZE[wA] : 1.0;
+    const sB = SHAPE_SIZE[wB] != null ? SHAPE_SIZE[wB] : 1.0;
+    const shapeMul = lerp(sA, sB, t);
+    const size = Math.max(0.5, p.baseSize * sizeAmplify * shapeMul);
+
+    // 透明度：baseAlpha × 闪烁 × 湿度中心值 × per-particle 稳定抖动
+    const jitter = (Math.sin(p.drawKey * 137.5) * 0.5 + 0.5) * 2 - 1; // -1..1
+    const humAlpha = clamp(alphaBase + jitter * alphaSpan, 0.15, 1.0);
+    const alpha = clamp(p.baseAlpha * twinkleAlpha * humAlpha, 0.02, 1.0);
+
+    // 色相（围绕全局 currentHue 浮动）
+    const hueVar = p.layer === 'hl' ? 30 : 18;
+    p.hue = (state.currentHue + Math.sin(now * 0.0003 + p.drawKey * 100) * hueVar + 360) % 360;
+
+    // 两态 tween 叠加
+    if (t >= 0.999 || wA === wB) {
+      drawOneShape(p, wB, p.hue, size, alpha);
+    } else {
+      ctx.globalAlpha = (1 - t) * 0.95;
+      drawOneShape(p, wA, p.hue, size * (1 + 0.1 * t), alpha);
+      ctx.globalAlpha = t * 0.95;
+      drawOneShape(p, wB, p.hue, size * (1 + 0.1 * (1 - t)), alpha);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /* ==========================================================
+     13. 粒子连线（雨雪跳过 → 加大视觉差异）
      ========================================================== */
   const CONNECTION_DIST = 80;
   const CONN_DIST2 = CONNECTION_DIST * CONNECTION_DIST;
   function drawConnections() {
+    const w = state.weatherT < 0.5 ? state.currentWeather : state.targetWeather;
+    if (w === 'rain' || w === 'snow') return;
+
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     ctx.lineCap = 'round';
@@ -635,14 +797,14 @@
         const pj = particles[j];
         const dx = pi.x - pj.x;
         const dy = pi.y - pj.y;
-        const d2 = dx*dx + dy*dy;
+        const d2 = dx * dx + dy * dy;
         if (d2 >= CONN_DIST2) continue;
         const d = Math.sqrt(d2);
-        const alpha = 0.22 * (1 - d / CONNECTION_DIST);
+        const alphaC = 0.22 * (1 - d / CONNECTION_DIST);
         const avgHue = (pi.hue + pj.hue) * 0.5;
-        ctx.strokeStyle = `hsla(${avgHue}, 100%, 70%, ${alpha})`;
+        ctx.strokeStyle = `hsla(${avgHue}, 100%, 70%, ${alphaC})`;
         ctx.lineWidth = 0.5 + 0.6 * (1 - d / CONNECTION_DIST);
-        ctx.shadowColor = `hsla(${avgHue}, 100%, 60%, ${alpha*0.6})`;
+        ctx.shadowColor = `hsla(${avgHue}, 100%, 60%, ${alphaC * 0.6})`;
         ctx.shadowBlur  = 4;
         ctx.beginPath();
         ctx.moveTo(pi.x, pi.y);
@@ -655,62 +817,71 @@
   }
 
   /* ==========================================================
-     10. 背景径向渐变（中心微亮 边缘全黑 → 景深感）
+     14. 背景径向渐变（跟随温度：低温深蓝黑，高温深红黑）
      ========================================================== */
   function drawBackgroundVignette() {
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
-    const cx = W * 0.5, cy = H * 0.5;
-    const R  = Math.max(W, H) * 0.75;
+    const cx = W * 0.5, cy = H * 0.45;
+    const R  = Math.max(W, H) * 0.8;
     const h  = state.currentHue;
     const g  = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-    // 中心带当前色相的微光，随温度变化颜色
-    g.addColorStop(0,   `hsla(${h}, 70%, 40%, 0.14)`);
-    g.addColorStop(0.4, `hsla(${h}, 55%, 25%, 0.05)`);
-    g.addColorStop(1,   `rgba(0, 0, 0, 1.00)`);
+    // 中心色：温度对应色相的"低亮度深色"（深蓝黑 ↔ 深红黑）
+    g.addColorStop(0,    `hsla(${h}, 85%, 22%, 0.55)`);
+    g.addColorStop(0.35, `hsla(${h}, 75%, 12%, 0.35)`);
+    g.addColorStop(0.7,  `hsla(${h}, 60%, 6%,  0.15)`);
+    g.addColorStop(1,    `rgba(0, 0, 0, 1)`);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
   }
 
   /* ==========================================================
-     11. requestAnimationFrame 主循环
+     15. 主循环
      ========================================================== */
   let RAF_LAST = 0;
   function frame(now) {
     const dt = Math.min(50, now - RAF_LAST) / 16.67;
     RAF_LAST = now;
 
-    // —— 缓动逼近状态 ——
-    state.currentHue       += (state.targetHue       - state.currentHue)       * 0.015;
-    state.currentSpeedMul  += (state.targetSpeedMul  - state.currentSpeedMul)  * 0.030;
-    state.currentSizeMul   += (state.targetSizeMul   - state.currentSizeMul)   * 0.035;
-    state.currentTrailAlpha+= (state.targetTrailAlpha- state.currentTrailAlpha)* 0.025;
+    // —— 全量状态缓动逼近（≈2 秒）——
+    state.currentHue         += (state.targetHue         - state.currentHue)         * 0.020;
+    state.currentSpeedMul    += (state.targetSpeedMul    - state.currentSpeedMul)    * 0.020;
+    state.currentTrailFrames += (state.targetTrailFrames - state.currentTrailFrames) * 0.020;
+    state.currentTrailAlpha  += (state.targetTrailAlpha  - state.currentTrailAlpha)  * 0.020;
+    state.currentAlphaMul    += (state.targetAlphaMul    - state.currentAlphaMul)    * 0.020;
+    state.currentDensityMul  += (state.targetDensityMul  - state.currentDensityMul)  * 0.020;
+    state.currentTemp        += (state.targetTemp        - state.currentTemp)        * 0.020;
+    state.currentWind        += (state.targetWind        - state.currentWind)        * 0.020;
 
-    if (state.shapeT < 1) {
+    // 天气过渡（2000ms）
+    if (state.weatherT < 1) {
       const n2 = performance.now();
-      state.shapeT = Math.min(1, state.shapeT + (n2 - state.shapeLast) / state.shapeDuration);
-      state.shapeLast = n2;
-      if (state.shapeT >= 1) state.currentShape = state.targetShape;
+      state.weatherT = Math.min(1, state.weatherT + (n2 - state.weatherLast) / state.weatherDuration);
+      state.weatherLast = n2;
+      if (state.weatherT >= 1) state.currentWeather = state.targetWeather;
     }
 
-    // 冲击波状态推进
+    // HUD 视觉标签
+    updateVisualTag();
+
+    // 冲击波推进
     if (state.shock.active) {
       const prog = (now - state.shock.startT) / state.shock.duration;
       if (prog >= 1) state.shock.active = false;
     }
 
-    // —— 每帧：先半透明盖黑实现“拖尾”（厚度 = currentTrailAlpha）——
+    // —— 拖尾：半透明盖黑 ——
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = `rgba(0,0,0,${state.currentTrailAlpha.toFixed(3)})`;
+    ctx.fillStyle = `rgba(0,0,0,${clamp(state.currentTrailAlpha, 0.05, 0.85).toFixed(3)})`;
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
 
-    // —— 背景径向渐变（景深感）——
+    // —— 背景径向渐变 ——
     drawBackgroundVignette();
 
-    // —— 鼠标坐标（NaN/越界保护后）——
+    // —— 鼠标 ——
     const mActive = state.mouse.active;
     const mCX = mActive ? state.mouse.cx : -9999;
     const mCY = mActive ? state.mouse.cy : -9999;
@@ -718,58 +889,87 @@
     const ATTRACT_R = 50;
     const ATTRACT_R2 = ATTRACT_R * ATTRACT_R;
 
-    // —— 冲击波参数 ——
-    let shockProg = 0;
-    let shockX = 0, shockY = 0;
-    let shockActive = state.shock.active;
+    // —— 冲击波 ——
+    let shockProg = 0, shockX = 0, shockY = 0, shockActive = state.shock.active;
     if (shockActive) {
       shockProg = Math.min(1, (now - state.shock.startT) / state.shock.duration);
-      shockX = state.shock.x;
-      shockY = state.shock.y;
+      shockX = state.shock.x; shockY = state.shock.y;
     }
 
-    // —— 先绘制连线（main 层之间，80px 内）——
+    // —— 显示阈值（密度）：T = (BASE_RENDER/400) × weatherDensity × densityMul ——
+    const wNow = state.weatherT < 1 ? state.currentWeather : state.targetWeather;
+    const wDen = WEATHER_DENSITY[wNow] != null ? WEATHER_DENSITY[wNow] : 1.0;
+    const T = Math.min(1.0, (BASE_RENDER / PARTICLE_COUNT) * wDen * state.currentDensityMul);
+
+    // 湿度 alpha 抖动范围（随 currentAlphaMul 变化）
+    const alphaBase = state.currentAlphaMul;
+    const alphaSpan2 = clamp((1.0 - alphaBase) * 0.35 + 0.05, 0.08, 0.20);
+
+    // —— 连线（雨雪跳过）——
     drawConnections();
 
-    // —— 使用 lighter 叠加绘制粒子（发光汇流成气流感）——
+    // —— 粒子：lighter 叠加发光 ——
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
 
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
 
-      // 粒子色相：围绕全局 currentHue ±18° 飘动（HL 层 ±30° 更缤纷）
-      const hueVar = p.layer === 'hl' ? 30 : 18;
-      p.hue = (state.currentHue + Math.sin(now * 0.0003 + i) * hueVar + 360) % 360;
+      // 稳定 drawKey 控制显示/隐藏（密度）
+      if (p.drawKey > T) continue;
 
-      // 形状 → 基础速度偏向
-      const shape = state.shapeT < 1 ? state.currentShape : state.targetShape;
+      // —— 天气类型 → 基础速度偏向 ——
       let vx = p.baseSpeedX;
       let vy = p.baseSpeedY;
-      const sm = state.currentSpeedMul * p.speedAmp;
-      if (shape === 'rain')        { vx *= 1.2;  vy = Math.max(vy + 1.2 * sm, 2.2 * sm); }
-      else if (shape === 'snow')   { vx *= 0.7;  vy = Math.max(vy + 0.2 * sm, 0.5 * sm); p.rot += p.rotSpeed; }
-      else if (shape === 'cloudy') { vx *= 0.4;  vy *= 0.4; }
-      else /* sunny */             { vx *= 0.85; vy *= 0.85; }
+      const gSm = state.currentSpeedMul * p.speedAmp;
 
-      // 乘以全局速度倍率
+      if (wNow === 'clear') {
+        vx *= 0.5; vy *= 0.5;
+      } else if (wNow === 'cloudy') {
+        vx *= 0.3; vy *= 0.3;
+        // 布朗抖动
+        vx += Math.sin(now * 0.001 + i) * 0.15;
+        vy += Math.cos(now * 0.0013 + i * 1.3) * 0.15;
+      } else if (wNow === 'rain') {
+        // 斜向下 45° 快速
+        const down = 3.0 * gSm + 2.0;
+        vx = vx * 0.2 + down * 0.707;
+        vy = vy * 0.1 + down * 0.707;
+      } else if (wNow === 'snow') {
+        // 螺旋飘落：慢速下降 + 水平正弦摆动
+        vy = Math.max(vy, 0.2 * gSm + 0.35);
+        vx = Math.sin(now * 0.001 + p.twPhase * 6.28 + p.y * 0.01) * (0.5 * gSm + 0.4);
+        p.rot += p.rotSpeed * 2.2;
+      } else if (wNow === 'storm') {
+        // 定期突变方向 → 躁动感
+        p.stormJitterT -= 1;
+        if (p.stormJitterT <= 0) {
+          p.stormJitterT = 10 + Math.floor(Math.random() * 25);
+          const a = Math.random() * Math.PI * 2;
+          const s = (1.8 + Math.random() * 3.5) * gSm;
+          p.stormVX = Math.cos(a) * s;
+          p.stormVY = Math.sin(a) * s;
+        }
+        vx = vx * 0.25 + p.stormVX * 0.75;
+        vy = vy * 0.25 + p.stormVY * 0.75;
+      }
+
+      // 全局速度倍率
       vx *= state.currentSpeedMul;
       vy *= state.currentSpeedMul;
 
-      // —— 鼠标排斥/吸引 双环 ——
+      // —— 鼠标双环（排斥/吸引）——
       if (mActive) {
         const dx = p.x - mCX;
         const dy = p.y - mCY;
-        const d2 = dx*dx + dy*dy;
+        const d2 = dx * dx + dy * dy;
         if (d2 < REPEL_R2 && d2 > 0.01) {
           const d = Math.sqrt(d2);
           if (d2 < ATTRACT_R2) {
-            // 内环 50px 内 轻微吸引（凝视感）
             const f = 1.8 * (1 - d / ATTRACT_R);
             vx -= (dx / d) * f;
             vy -= (dy / d) * f;
           } else {
-            // 50~150px 排斥
             const f = 4.2 * (1 - (d - ATTRACT_R) / (150 - ATTRACT_R));
             const f2 = f * f * 0.35 + 0.1;
             vx += (dx / d) * f2;
@@ -778,19 +978,17 @@
         }
       }
 
-      // —— 点击冲击波：聚拢→炸开 ——
+      // —— 点击冲击波 ——
       if (shockActive) {
         const dx = p.x - shockX;
         const dy = p.y - shockY;
-        const d  = Math.sqrt(dx*dx + dy*dy) + 0.001;
+        const d  = Math.sqrt(dx * dx + dy * dy) + 0.001;
         if (shockProg < 0.30) {
-          // 0~30%: 聚拢
           const strength = 6.0 * (1 - shockProg / 0.30);
           vx -= (dx / d) * strength;
           vy -= (dy / d) * strength;
         } else {
-          // 30%~100%: 炸开（距离越近推力越大 + 指数衰减）
-          const p2 = (shockProg - 0.3) / 0.7;  // 0..1
+          const p2 = (shockProg - 0.3) / 0.7;
           const strength = 11.0 * (1 - p2) * Math.exp(-d / 240);
           vx += (dx / d) * strength;
           vy += (dy / d) * strength;
@@ -803,13 +1001,14 @@
       p.x     += p.speedX * dt;
       p.y     += p.speedY * dt;
 
-      // 环绕边界（wrap）
-      if (p.x < -50) p.x = W + 50;
-      else if (p.x > W + 50) p.x = -50;
-      if (p.y < -50) p.y = H + 50;
-      else if (p.y > H + 50) p.y = -50;
+      // 边界环绕
+      if (p.x < -60) p.x = W + 60;
+      else if (p.x > W + 60) p.x = -60;
+      if (p.y < -60) p.y = H + 60;
+      else if (p.y > H + 60) p.y = -60;
 
-      drawParticle(p);
+      // 绘制
+      drawParticle(p, now, alphaBase, alphaSpan2);
     }
 
     ctx.restore();
@@ -818,7 +1017,7 @@
   requestAnimationFrame(function (t) { RAF_LAST = t; frame(t); });
 
   /* ==========================================================
-     12. 启动：默认北京；6 秒硬超时强制移除 loading
+     16. 启动
      ========================================================== */
   (async function init() {
     let forceHidden = false;
@@ -839,7 +1038,10 @@
       }
     }, 1500);
 
-    setTimeout(function () { state.shapeT = 1; state.currentShape = state.targetShape; }, 3000);
+    setTimeout(function () {
+      state.weatherT = 1;
+      state.currentWeather = state.targetWeather;
+    }, 3000);
   })();
 
 })();

@@ -6,6 +6,67 @@
     <title>CYBER_WEATHER // 中国天气地图_2077</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        /* 首页 → 艺术页面 入口按钮 (cyber-art-btn) */
+        .cyber-art-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 18px;
+            border: 1px solid rgba(0, 255, 255, 0.35);
+            background: linear-gradient(135deg,
+                rgba(138, 43, 226, 0.18),
+                rgba(  0, 255, 255, 0.14));
+            color: #c9f7ff;
+            text-decoration: none;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            letter-spacing: 1px;
+            clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+            transition: all .25s ease;
+            box-shadow: 0 0 0 rgba(0, 255, 255, 0);
+            margin-left: 14px;
+            position: relative;
+            overflow: hidden;
+        }
+        .cyber-art-btn::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0;
+            width: 2px; height: 100%;
+            background: linear-gradient(180deg,
+                rgba(255, 0, 255, 0.9),
+                rgba(  0, 255, 255, 0.9));
+        }
+        .cyber-art-btn:hover {
+            border-color: rgba(255, 0, 255, 0.55);
+            background: linear-gradient(135deg,
+                rgba(255, 0, 255, 0.25),
+                rgba(  0, 255, 255, 0.22));
+            color: #ffffff;
+            box-shadow:
+                0 0 14px rgba(255, 0, 255, 0.55),
+                0 0 26px rgba(  0, 255, 255, 0.25) inset;
+            transform: translateY(-1px);
+        }
+        .cyber-art-btn .btn-icon {
+            color: #ff2fd4;
+            text-shadow: 0 0 8px rgba(255, 0, 255, 0.8);
+        }
+        .cyber-art-btn .btn-arrow {
+            color: #00ffff;
+            font-size: 16px;
+            line-height: 1;
+        }
+        @media (max-width: 720px) {
+            .cyber-art-btn {
+                padding: 6px 10px;
+                font-size: 11px;
+                margin-left: 8px;
+            }
+            .cyber-art-btn .btn-text { white-space: nowrap; }
+        }
+    </style>
 </head>
 <body>
     <div class="scanline"></div>
@@ -30,6 +91,11 @@
             <span class="status-item"><span class="led led-cyan"></span> <span id="current-time">--:--:--</span></span>
             <span class="status-item"><span class="led led-pink"></span> <span id="active-city">北京</span></span>
         </div>
+        <a href="{{ url_for('art') }}" class="cyber-art-btn" title="进入艺术模式：粒子数据诗学空间">
+            <span class="btn-icon">✦</span>
+            <span class="btn-text">ART_VISUAL // 艺术模式</span>
+            <span class="btn-arrow">›</span>
+        </a>
     </header>
 
     <main class="map-container">
